@@ -15,42 +15,41 @@ def get_restype(fname, args=[]):
         return {funcres[fname]}
     if fname in argfunc:
         return argfunc[fname](args)
-    return {Any}
+    return TypeSet({Any})
     
 def value_to_type(value):
     if isinstance(value, ast.Num):
-        return {type(value.n)}
-    if isinstance(value, ast.Str):
-        return {str}
-    if isinstance(value, ast.Dict):
+        res = type(value.n)
+    elif isinstance(value, ast.Str):
+        res = str
+    elif isinstance(value, ast.Dict):
         keys=[value_to_type(i) for i in value.keys]
         values=[value_to_type(i) for i in value.values]
-        return {TDict(keys,values)}
-    if isinstance(value, ast.Tuple):
-        return {TTuple([value_to_type(i) for i in value.elts])}
-    if isinstance(value, ast.List):
-        return {TList([value_to_type(i) for i in value.elts])}
-    if isinstance(value, ast.Name):
+        res = TDict(keys,values)
+    elif isinstance(value, ast.Tuple):
+        res = TTuple([value_to_type(i) for i in value.elts])
+    elif isinstance(value, ast.List):
+        res = TList([value_to_type(i) for i in value.elts])
+    elif isinstance(value, ast.Name):
         if value.id not in vartodic:
             print("error: undefined reference to", value.id)
-            return Bottom
+            res = Bottom
         else:
             return vartodic[value.id]
-    if isinstance(value, ast.Call):
+    elif isinstance(value, ast.Call):
         args = [value_to_type(i) for i in value.args]
         return get_restype(value.func.id,  args)   
-    if isinstance(value, ast.ListComp):
+    elif isinstance(value, ast.ListComp):
         return do_listcomp(value)
     else:
         print(value)
-        return Any
+        res = Any
+    return TypeSet({res})
 
 def updatedic(var_id, val):
     if var_id not in vartodic:
-        vartodic[var_id] = set({})
+        vartodic[var_id] = TypeSet({})
     vartodic[var_id].update(val)
-    if Any in vartodic[var_id]:
-        vartodic[var_id]={Any}
     
 def do_assign(ass):
     target = ass.targets[0]
@@ -87,7 +86,7 @@ def do_listcomp(expr):
     vall = value_to_type(expr.elt)
     if save != None:
         vartodic[name]= save
-    return {TSeq.fromset(vall)}
+    return TypeSet({TSeq.fromset(vall)})
 
 if __name__ == '__main__':
     s = list(ast.walk(ast.parse(open(filename).read())))

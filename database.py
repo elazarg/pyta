@@ -16,7 +16,34 @@ class AnyClass:
         return [{Any}] * n
 
 Any = AnyClass()
+
+class TypeSet:
+    def __init__(self, iterable):
+        self.types = set(iterable)
+        self.to_invariant()
+        
+    def update(self, iterable):
+        self.types.update(iterable)
+        self.to_invariant()
+        
+    def add(self, obj):
+        self.types.add(obj)
+        self.to_invariant()
     
+    def to_invariant(self):
+        if Any in self.types:
+            self.types = {Any}
+    
+    def __iter__(self):
+        return self.types.__iter__()
+    
+    @staticmethod
+    def union_all(iterable):
+        return TypeSet(reduce(set.union, [i.types for i in iterable]))
+    
+    def __repr__(self):
+        return repr(self.types)
+
 class Bottom:
     def __repr__(self):
         return "<class 'Bottom'>"
@@ -56,11 +83,10 @@ class TIter(TSeq):
 
 class TDict(TSeq):
     def __init__(self, tkeys, tvalues):
-        skeys = set(reduce(set.union, tkeys))
+        skeys = TypeSet.union_all(tkeys)
         temp = set(sum([list(product(k,v)) for k,v in zip(tkeys, tvalues)], []))
-        self.types = { k : set([v for tk, v in temp if tk==k]) for k in skeys}
-        
-
+        self.types = { k : TypeSet([v for tk, v in temp if tk==k]) for k in skeys}
+    
     def __repr__(self):
         return "<class 'TDict(" + repr(self.types) +")'>"
 
@@ -79,7 +105,7 @@ class TTuple(TSeq):
         return self.types 
  
     def typeset(self):   
-        return set.union(*self.types)
+        return TypeSet.union_all(self.types)
        
     def __repr__(self):
         return "<class 'TTuple(" + repr(self.types) +")'>"
@@ -163,7 +189,7 @@ funcres= {
           'iter' : TIter(Bottom),
           'len' : int,
           'list' : TList([]),
-          'locals' : TDict([{str}], [{Any}]),
+          'locals' : TDict([TypeSet({str})], [TypeSet({Any})]),
           'map' : TSeq(Any),
           'memoryview': memoryview,
           'object' : object,
