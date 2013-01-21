@@ -56,7 +56,9 @@ class SingleHandlers:
         vall = value_to_type(value.elt)
         if save != None:
             vartodic[name]= save
-        return TSeq.fromset(vall)
+        res = TSeq.fromset(vall)
+        assert not isinstance(res, TypeSet)
+        return res
 
 class MultiHandlers:
     @staticmethod
