@@ -2,26 +2,28 @@
 
 import ast
 from database import *
-from functools import reduce
 filename = 'parsed.py'
 
-vartodic = {'None' : {type(None)}}
+vartodic = {'None' : TypeSet({NONE}) }
 
 def augisinstance(s, t):
     return s==Any or isinstance(s,t)
 
 def get_restype(fname, args=[]):
     if fname in funcres:
-        return {funcres[fname]}
+        return TypeSet({funcres[fname]})
     if fname in argfunc:
-        return argfunc[fname](args)
+        return TypeSet(argfunc[fname](args))
     return TypeSet({Any})
     
 def value_to_type(value):
     if isinstance(value, ast.Num):
-        res = type(value.n)
+        if isinstance(value.n, int):
+            res = INT
+        elif isinstance(value.n, float):
+            res = FLOAT
     elif isinstance(value, ast.Str):
-        res = str
+        res = STR
     elif isinstance(value, ast.Dict):
         keys=[value_to_type(i) for i in value.keys]
         values=[value_to_type(i) for i in value.values]
@@ -38,9 +40,19 @@ def value_to_type(value):
             return vartodic[value.id]
     elif isinstance(value, ast.Call):
         args = [value_to_type(i) for i in value.args]
-        return get_restype(value.func.id,  args)   
+        if isinstance(value.func, ast.Name):
+            return get_restype(value.func.id,  args)
+        if isinstance(value.func, ast.Attribute):
+            caller = value.func.value
+            attr = value.func.attr 
+            res = [i.dict[attr](args) for i in value_to_type(caller) if attr in i.dict]
+            return TypeSet(res)
     elif isinstance(value, ast.ListComp):
         return do_listcomp(value)
+    elif isinstance(value, ast.Attribute):
+        res = (i.dict[value.attr] for i in value_to_type(value.value) if value.attr in i.dict)
+        if len(res)==0:
+            res = Bottom
     else:
         print(value)
         res = Any
@@ -59,13 +71,13 @@ def do_assign(ass):
     elif isinstance(target, ast.Tuple):
         size = len(target.elts)
         target_matrix = [v.split_to(size) for v in val if augisinstance(v, TSeq) and v.can_split_to(size)]
-        assert target_matrix != []        
-        target_tuple = [reduce(set.union,[v[i] for v in target_matrix]) for i in range(size)]
+        assert target_matrix != []
+        target_tuple = [TypeSet.union_all([v[i] for v in target_matrix]) for i in range(size)]
         for name, objset in zip(target.elts, target_tuple):
             updatedic(name.id, objset)
     
 def getseq(expr):
-    return {v for v in value_to_type(expr.iter) if augisinstance(v, TSeq)}
+    return TypeSet({v for v in value_to_type(expr.iter) if augisinstance(v, TSeq)})
 
 def do_for(fstat):
     val = getseq(fstat)

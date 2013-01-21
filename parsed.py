@@ -8,7 +8,9 @@ for i in range(n):
     a,b=b,sum([a,b])
 print(b)
 x=('fd', None)
-x=5
+t=x.count('sd')
+x=5,5
+z='g'
 z,t=x
 for j in (1,2):
     print(j)
