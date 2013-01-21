@@ -115,6 +115,8 @@ class TypeSet(TObject):
     
     @staticmethod
     def union_all(iterable):
+        if len(iterable)==0:
+            return TypeSet({})
         return TypeSet(set.union(*[i.types for i in iterable]))
     
     def __repr__(self):
@@ -177,8 +179,6 @@ class TDict(TSeq):
     def __repr__(self):
         return "Dict(" + repr(self.types) +")"
 
-
-
 class TTuple(TSeq):
     def __init__(self, tvalues):
         self.dict = {}
@@ -232,53 +232,42 @@ class TStr(TTuple):
     
     def typeset(self):   
         return st(TStr())
-         
-class TFunc:
-    @staticmethod
-    def abs(tlist):
-        return tlist[0]
-    
-    @staticmethod
-    def max(tlist):
-        return TypeSet.union_all(tlist)
 
-    @staticmethod
-    def filter(tlist):
-        return tlist[1]
-    
-    @staticmethod
-    def next(tlist):
-        res = tlist[0].types
-        if len(tlist)==0:
-            res.update(tlist[1])
-        return res
-    
-    @staticmethod
-    def sum(tlist):
-        TASSERT(1<=len(tlist)<=2)
-        types = set()
-        for i in tlist[0]:
-            if isinstance(i, TSeq):
-                types.update(i.typeset())
-        TASSERT(len(types) > 0)
-        if (len(tlist)==1):
-            tlist.append({INT, FLOAT, COMPLEX})
-        res = types.intersection(tlist[1])
-        TASSERT(len(res)>0)
-        return TypeSet(res)
+class TArgs:
+    def __init__(self, argslist):
+        assert len(argslist) == 8
+        self.args, self.vararg, self.varargannotation = argslist[:3]
+        self.argnames = [i.arg for i in self.args]
+        self.kwonlyargs, self.kwarg, self.kwargannotation = argslist[3:6]
+        self.defaults, self.kw_defaults = argslist[6:]
+        
+    def __repr__(self):
+        regargs = self.argnames[:-len(self.defaults)]+['{0}={1}'.format(i,j) for i,j in zip(reversed(self.argnames), reversed(self.defaults))]
+        res = (i for i in (regargs, self.vararg, self.varargannotation, self.kwonlyargs, self.kwarg, self.kwargannotation, self.kw_defaults) if i)
+        return str(tuple(res))
 
-argfunc = {
-           'abs' : TFunc.abs,
-           'max' : TFunc.max,
-           'min' : TFunc.max,
-           'filter' : TFunc.filter,
-           'next' : TFunc.next,
-           'pow' : TFunc.max,
-           'reversed' : TFunc.abs,
-           'sorted' : TFunc.abs,
-           'sum' : TFunc.sum,
-           }
+    def ismatch(self, actual_args):
+        return len(self.args)==len(actual_args)
+       
+#TODO argslist as a class
+class TFunc(TObject):
+    def __init__(self, name, argslist, returns):
+        self.name = name
+        self.formal_params = TArgs(argslist)
+        assert isinstance(returns, TypeSet)
+        self.returns = returns
+    
+    def __repr__(self):
+        return '{0}{1} -> {2}'.format(self.name, repr(self.formal_params), self.returns)
+    
+    def ismatch(self, actual_args):
+        return self.formal_params.ismatch(actual_args)
 
+    def call(self, actual_args):
+        assert self.ismatch(actual_args)
+        return self.returns
+        
+argfunc = { }
 BOOL = TObject(bool)
 STR = TStr()
 INT, FLOAT, COMPLEX = TInt(), TFloat(), TNum(complex)

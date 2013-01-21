@@ -2,25 +2,31 @@
 
 import ast
 from types import *
-filename = 'test/parsed.py'
-filename = 'database/functions.py'
+
 constants = {'None' : st(NONE), 'False' : st(TBool()), 'True' : st(TBool())}
+funcs = {}
 vartodic = {}
 
 def updatedic(var_id, val):
     if var_id not in vartodic:
         vartodic[var_id] = TypeSet({})
     vartodic[var_id].update(val)
-      
 
 def augisinstance(s, t):
     return s==Any or isinstance(s,t)
 
 def get_restype(fname, args=[]):
+    if fname in funcs:
+        foo = funcs[fname]
+        if not foo.ismatch(args):
+            return st(Bottom)
+        return funcs[fname].call(args)
     if fname in funcres:
         return st(funcres[fname])
+        '''
     if fname in argfunc:
         return argfunc[fname](args)
+        '''
     return st(Any)
 
 class SingleHandlers:
@@ -70,11 +76,10 @@ class SingleHandlers:
 class MultiHandlers:
     @staticmethod
     def Name(value):
-        if value in constants:
-            return constants[value]
-        if value in vartodic:
-            return vartodic[value]
-        return st(Bottom)
+        res = TypeSet.union_all([d.get(value.id,TypeSet({})) for d in [constants, funcs, vartodic]])
+        if len(res)==0:
+            return st(Bottom)
+        return res
     
     @staticmethod
     def get_attr_types(attr, this):
@@ -88,7 +93,7 @@ class MultiHandlers:
             res = get_restype(func.id,  args)
         elif isinstance(func, ast.Attribute):
             acc = MultiHandlers.get_attr_types(func.attr, func.value)  
-            res = TypeSet.union_all(foo(args) for foo in acc)
+            res = TypeSet.union_all([foo(args) for foo in acc])
         assert isinstance(res, TypeSet)
         return res
 
@@ -100,13 +105,16 @@ class MultiHandlers:
         return TypeSet(res)
     
 class Definitions:
+           
     @staticmethod
     def FunctionDef(func):
-        name = func.name
         args = func.args
-        print(name, end=': ')
-        print(args.args, args.vararg, args.varargannotation, args.kwonlyargs, args.kwarg, args.kwargannotation, args.defaults, args.kw_defaults, end=' -> ')
-        print(value_to_type(func.body[0].value))
+        defaults = [value_to_type(i) for i in args.defaults]
+        tup = (args.args, args.vararg, args.varargannotation, args.kwonlyargs, args.kwarg, args.kwargannotation, defaults, args.kw_defaults)
+        returns = value_to_type(func.body[0].value)
+        f=TFunc(func.name, tup, returns)
+        funcs[func.name] = f
+        print(f)
         
 '''
 Module(body=[FunctionDef(name='foo', args=arguments(args=[], vararg=None, varargannotation=None, kwonlyargs=[], kwarg=None, kwargannotation=None, defaults=[], kw_defaults=[]),
@@ -158,7 +166,7 @@ def do_for(fstat):
     for i in val:
         updatedic(fstat.target.id, i.typeset())
 
-if __name__ == '__main__':
+def walk(filename):
     s = list(ast.walk(ast.parse(open(filename).read())))
     for i in s:
         if isinstance(i, ast.Assign):
@@ -168,5 +176,14 @@ if __name__ == '__main__':
         if isinstance(i, ast.FunctionDef):
             Definitions.FunctionDef(i)
 
+    for i, j in funcs.items():
+        print(i,': ', j)
+
     for i, j in vartodic.items():
         print(i,': ', j)
+
+if __name__=='__main__':
+    walk('database/functions.py')
+    walk('test/parsed.py')
+    
+    
