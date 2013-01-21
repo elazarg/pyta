@@ -2,7 +2,7 @@
 
 import ast
 from types import *
-filename = 'parsed.py'
+filename = 'test/parsed.py'
 
 vartodic = {'None' : TypeSet({NONE}) }
 
