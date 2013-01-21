@@ -56,6 +56,15 @@ class TInt(TNum):
     def __repr__(self):
         return "Int"
 
+class TBool(TNum):
+    def __init__(self, t=int):
+        self.dict = TInt().dict
+
+    def __repr__(self):
+        return "Bool"
+
+
+
 class TFloat(TNum):
     def __init__(self, t=float):
         self.dict = {}
@@ -160,8 +169,8 @@ class TIter(TSeq):
 
 class TDict(TSeq):
     def __init__(self, tkeys, tvalues):
-        self.dict = {}
-        skeys = TypeSet.union_all(tkeys)
+        self.dict = {}            
+        skeys = TypeSet.union_all(tkeys) if len(tkeys) != 0 else TypeSet({})
         temp = set(sum([list(product(k,v)) for k,v in zip(tkeys, tvalues)], []))
         self.types = { k : TypeSet([v for tk, v in temp if tk==k]) for k in skeys}
     

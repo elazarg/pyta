@@ -79,8 +79,6 @@ def list():
 def locals():
     return {"" : ""}
 
-def map(func, *iterables):
-    return iterables
 
 def oct():
     return ""
@@ -124,4 +122,5 @@ def pow():  TFunc.max,
 def reversed():  TFunc.abs,
 def sorted():  TFunc.abs,
 def sum():  TFunc.sum,
+def map(func, *iterables):    return iterables
 '''

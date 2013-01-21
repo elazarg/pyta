@@ -3,8 +3,15 @@
 import ast
 from types import *
 filename = 'test/parsed.py'
+filename = 'database/functions.py'
+constants = {'None' : st(NONE), 'False' : st(TBool()), 'True' : st(TBool())}
+vartodic = {}
 
-vartodic = {'None' : TypeSet({NONE}) }
+def updatedic(var_id, val):
+    if var_id not in vartodic:
+        vartodic[var_id] = TypeSet({})
+    vartodic[var_id].update(val)
+      
 
 def augisinstance(s, t):
     return s==Any or isinstance(s,t)
@@ -63,32 +70,48 @@ class SingleHandlers:
 class MultiHandlers:
     @staticmethod
     def Name(value):
-        if value.id not in vartodic:
-            print("error: undefined reference to", value.id)
-            return st(Bottom)
-        else:
-            return vartodic[value.id]
-
+        if value in constants:
+            return constants[value]
+        if value in vartodic:
+            return vartodic[value]
+        return st(Bottom)
+    
+    @staticmethod
+    def get_attr_types(attr, this):
+        return {i.dict[attr] for i in value_to_type(this) if attr in i.dict}
+        
     @staticmethod
     def Call(value):
         args = [value_to_type(i) for i in value.args]
-        if isinstance(value.func, ast.Name):
-            res = get_restype(value.func.id,  args)
-        elif isinstance(value.func, ast.Attribute):
-            caller = value.func.value
-            attr = value.func.attr 
-            res = TypeSet.union_all([i.dict[attr](args) for i in value_to_type(caller) if attr in i.dict]).types
+        func = value.func
+        if isinstance(func, ast.Name):
+            res = get_restype(func.id,  args)
+        elif isinstance(func, ast.Attribute):
+            acc = MultiHandlers.get_attr_types(func.attr, func.value)  
+            res = TypeSet.union_all(foo(args) for foo in acc)
+        assert isinstance(res, TypeSet)
         return res
 
     @staticmethod
     def Attribute(value):
-        res = {i.dict[value.attr] for i in value_to_type(value.value) if value.attr in i.dict}
+        res = MultiHandlers.get_attr_types(value.attr, value.value)
         if len(res)==0:
             res = {Bottom}
         return TypeSet(res)
     
-
-
+class Definitions:
+    @staticmethod
+    def FunctionDef(func):
+        name = func.name
+        args = func.args
+        print(name, end=': ')
+        print(args.args, args.vararg, args.varargannotation, args.kwonlyargs, args.kwarg, args.kwargannotation, args.defaults, args.kw_defaults, end=' -> ')
+        print(value_to_type(func.body[0].value))
+        
+'''
+Module(body=[FunctionDef(name='foo', args=arguments(args=[], vararg=None, varargannotation=None, kwonlyargs=[], kwarg=None, kwargannotation=None, defaults=[], kw_defaults=[]),
+                          body=[Return(value=NameConstant(value=None))], decorator_list=[], returns=None)])
+'''                          
 typetofunc_single = {
               ast.Num : SingleHandlers.Num,
               ast.Str : SingleHandlers.Str,
@@ -113,11 +136,6 @@ def value_to_type(value):
         res = st(Any)
     return res
 
-def updatedic(var_id, val):
-    if var_id not in vartodic:
-        vartodic[var_id] = TypeSet({})
-    vartodic[var_id].update(val)
-    
 def do_assign(ass):
     target = ass.targets[0]
     val = value_to_type(ass.value)
@@ -147,7 +165,8 @@ if __name__ == '__main__':
             do_assign(i)
         if isinstance(i, ast.For):
             do_for(i) 
-    
-    del vartodic['None']
+        if isinstance(i, ast.FunctionDef):
+            Definitions.FunctionDef(i)
+
     for i, j in vartodic.items():
         print(i,': ', j)
