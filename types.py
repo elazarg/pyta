@@ -93,6 +93,7 @@ class TypeSet(TObject):
         self.to_invariant()
         
     def add(self, obj):
+        assert not isinstance(obj, TypeSet)
         self.types.add(obj)
         self.to_invariant()
     
@@ -308,7 +309,7 @@ funcres= {
           'oct' : STR,
           'ord' : INT,
           'print' : NONE,
-          'range' : TIter(st(INT)),
+          'range' : TIter(INT),
           'repr' : STR,
           'round' : INT,
           'set' : TSet,

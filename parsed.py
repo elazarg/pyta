@@ -1,5 +1,5 @@
 
-r=[i for i in (1,2,3)]
+r=[j for j in (1,2,3)]
 n=max(5,3.5)
 d={'hello': 1, 'world' : r, 'wa' : n, n:'wa'}
 a,b=0,1
@@ -10,5 +10,5 @@ t=x.count('sd')
 x=5,5
 z='g'
 z,t=x
-for j in (1,2):
-    print(j)
+for k in (1,2):
+    print(k)
