@@ -84,6 +84,7 @@ Any = AnyClass()
 
 class TypeSet(TObject):
     def __init__(self, iterable):
+        assert not isinstance(iterable, TypeSet)
         self.types = set(iterable)
         self.to_invariant()
         
@@ -229,10 +230,7 @@ class TFunc:
     
     @staticmethod
     def max(tlist):
-        s=set()
-        for i in tlist:
-            s.update(i)
-        return i
+        return TypeSet.union_all(tlist)
 
     @staticmethod
     def filter(tlist):
