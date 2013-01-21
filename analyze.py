@@ -1,7 +1,7 @@
 #!/sbin/python3
 
 import ast
-from database import *
+from types import *
 filename = 'parsed.py'
 
 vartodic = {'None' : TypeSet({NONE}) }
