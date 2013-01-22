@@ -91,7 +91,8 @@ def print(x):
 def repr(obj):
     return ""
 
-def round():
+def round(obj):
+    pass
     return 0
 
 def set():
