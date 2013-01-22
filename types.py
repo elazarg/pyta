@@ -1,11 +1,5 @@
+from typeset import TypeSet, st, Empty, Any
 from itertools import product
-
-def TASSERT(b): 
-    if not b:
-        print('ERROR')
-
-def st(t):
-    return TypeSet({t})
 
 class TObject:
     def __init__(self, t=object):
@@ -24,6 +18,7 @@ class TObject:
 
     def __repr__(self):
         return repr(self.type).split(sep="'")[1]
+            
     
 class TNum(TObject):
     def __init__(self, t):
@@ -72,66 +67,6 @@ class TFloat(TNum):
 
     def __repr__(self):
         return "float"
-
-class AnyClass(TObject):
-    def __init__(self):
-        super(type)
-        
-    def __repr__(self):
-        return "Any"
-    
-    def can_split_to(self, n):
-        return True
-        
-    def split_to(self, n):
-        return [{Any}] * n
-
-Any = AnyClass()
-
-class TypeSet(TObject):
-    def __init__(self, iterable):
-        assert not isinstance(iterable, TypeSet)
-        self.types = set(iterable)
-        self.to_invariant()
-        
-    def update(self, iterable):
-        self.types.update(iterable)
-        self.to_invariant()
-        
-    def add(self, obj):
-        assert not isinstance(obj, TypeSet)
-        self.types.add(obj)
-        self.to_invariant()
-
-    def union(self, other):
-        assert isinstance(other, TypeSet)
-        return TypeSet(set.union(self.types, other.types)) 
-    
-    def to_invariant(self):
-        if Any in self.types:
-            self.types = {Any}
-    
-    def __iter__(self):
-        return self.types.__iter__()
-    
-    @staticmethod
-    def union_all(iterable):
-        if len(iterable)==0:
-            return TypeSet({})
-        return TypeSet(set.union(*[i.types for i in iterable]))
-    
-    def __repr__(self):
-        return 'T{' +', '.join([str(i) for i in self.types]) +'}'
-
-    def __len__(self):
-        return len(self.types)
- 
-
-class BottomType:
-    def __repr__(self):
-        return "Bottom"
-
-Bottom = BottomType()
 
 class TSeq(TObject):
     def __init__(self, *targs):
@@ -255,10 +190,8 @@ class TFunc(TObject):
     def __init__(self, name, argslist, returns):
         self.name = name
         self.formal_params = TArgs(argslist)
-        #print(returns)
         assert isinstance(returns, TypeSet)
         self.returns = returns
-        print(returns)
     
     def __repr__(self):
         return '{0}{1} -> {2}'.format(self.name, repr(self.formal_params), self.returns)
@@ -267,10 +200,9 @@ class TFunc(TObject):
         return self.formal_params.ismatch(actual_args)
 
     def call(self, actual_args):
-        #assert self.ismatch(actual_args)
+        assert self.ismatch(actual_args)
         return self.returns
-        
-argfunc = { }
+
 BOOL = TObject(bool)
 STR = TStr(str)
 BYTES = TStr(bytes)

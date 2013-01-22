@@ -15,6 +15,11 @@ t=x.count('sd')
 for i in range(n):
     a,b=b,sum([a,b])
     fff=5
+    
+    
+b1, b2, b3 = 0, 0.0, ''
+if True:
+    b1, b2, b3 = b3, b1, b2
 '''
 
 

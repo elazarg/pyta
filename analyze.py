@@ -3,10 +3,8 @@
 import ast
 from types import *
 
-constants = {'None' : st(NONE), 'False' : st(TBool()), 'True' : st(TBool())}
-
 class SymTable:
-    constants = {'None' : st(NONE), 'False' : st(TBool()), 'True' : st(TBool())}
+    constants = {'None' : st(NONE), 'False' : st(BOOL), 'True' : st(BOOL)}
     
     def __init__(self):
         self.vars = {}
@@ -27,13 +25,23 @@ class SymTable:
             self.update(k, v)
         
     def get_var(self, name):
-        return self.vars.get(name, TypeSet({})).union(SymTable.constants.get(name, TypeSet({})))
+        consts = SymTable.constants.get(name, TypeSet({}))
+        return self.vars.get(name, TypeSet({})).union(consts)
 
     def __getitem__(self, name):
         return self.get_var(name)
 
     def __repr__(self):
         return '{0}'.format(repr(self.vars))
+    
+    def __eq__(self, other):
+        return isinstance(other, SymTable) and self.vars == other.vars
+    
+    def __len__(self):
+        return len(self.vars)
+    
+    def includes(self, other):
+        return isinstance(other, SymTable) and all( (i,j) in self.vars.items() for i,j in other.vars.items())
     
 def augisinstance(s, t):
     return s==Any or isinstance(s,t)
@@ -44,7 +52,7 @@ class Module:
         if len(res) > 0:
             return res
         if self.parent == None:
-            return st(Bottom)
+            return Empty
         return self.parent.lookup(name) 
         
     def Num(self, value):
@@ -86,7 +94,7 @@ class Module:
         res = self.lookup(value.id)
         assert isinstance(res, TypeSet)
         if len(res)==0:
-            return st(Bottom)
+            return Empty
         return res
     
     def get_attr_types(self, attr, this):
@@ -108,7 +116,7 @@ class Module:
     def Attribute(self, value):
         res = self.get_attr_types(value.attr, value.value)
         if len(res)==0:
-            res = {Bottom}
+            return Empty
         return TypeSet(res)
 
     def value_to_type(self, value):
@@ -186,6 +194,19 @@ class Module:
         returns = m.parse()
         return m.sym, returns
     
+    def do_while(self, stat):
+        returns = TypeSet({})
+        while True:
+            sym, ret = self.do_if(stat)
+            print(sym)
+            returns.update(ret)
+            old_sym = repr(self.sym)
+            self.sym.merge(sym)
+            new_sym = repr(self.sym)
+            if (old_sym==new_sym):
+                break
+        return sym, returns
+    
     def do_return(self, ret):
         return self.value_to_type(ret.value)
     
@@ -201,8 +222,10 @@ class Module:
                 self.sym.update_func(fname, fobj)
             elif isinstance(stat, ast.For):
                 newsym, newreturn = self.do_for(stat)
-            elif isinstance(stat, (ast.If, ast.While)):
+            elif isinstance(stat, ast.If):
                 newsym, newreturn = self.do_if(stat)
+            elif isinstance(stat, ast.While):
+                newsym, newreturn = self.do_while(stat)
             elif isinstance(stat, ast.Return):
                 newreturn = self.do_return(stat)
             elif isinstance(stat, ast.Expr):
@@ -224,10 +247,9 @@ def walk(filename, module = None):
     f_ast = ast.parse(open(filename).read())
     m=Module(f_ast.body, module)
     m.parse()
-    print(*['{0} : {1}'.format(k,v) for k,v in m.sym.vars.items()], sep='\n')
     return m
 
 if __name__=='__main__':
-    walk('test/parsed.py', walk('database/functions.py'))
-    
+    m = walk('test/parsed.py', walk('database/functions.py'))
+    print(*['{0} : {1}'.format(k,v) for k,v in m.sym.vars.items()], sep='\n')
     
