@@ -117,8 +117,9 @@ def pow(x,y,z=0):
 
 def abs(x):
     return x
+
 '''
-def max():  TFunc.max,
+def max(a,b):    return a
 def min():  TFunc.max,
 def filter():  TFunc.filter,
 def next():  TFunc.next,

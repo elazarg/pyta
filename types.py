@@ -1,5 +1,4 @@
 from itertools import product
-from functools import reduce
 
 def TASSERT(b): 
     if not b:
@@ -105,6 +104,10 @@ class TypeSet(TObject):
         assert not isinstance(obj, TypeSet)
         self.types.add(obj)
         self.to_invariant()
+
+    def union(self, other):
+        assert isinstance(other, TypeSet)
+        return TypeSet(set.union(self.types, other.types)) 
     
     def to_invariant(self):
         if Any in self.types:

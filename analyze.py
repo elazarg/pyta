@@ -3,9 +3,30 @@
 import ast
 from types import *
 
-constants = {'None' : st(NONE), 'False' : st(TBool()), 'True' : st(TBool())}
 funcs = {}
 vartodic = {}
+constants = {'None' : st(NONE), 'False' : st(TBool()), 'True' : st(TBool())}
+
+class SymTable:
+    constants = {'None' : st(NONE), 'False' : st(TBool()), 'True' : st(TBool())}
+    
+    def __init__(self):
+        self.funcs = {}
+        self.vars = {}
+
+    def update(self, var_id, valset):
+        if var_id not in self.vars:
+            self.vars[var_id] = TypeSet({})
+        self.vars[var_id].update(valset)
+
+    def get_func(self, name):
+        return self.funcs.get(name, TypeSet({}))
+
+    def get_var(self, name):
+        return self.vars.get(name, TypeSet({})).union(SymTable.constants)
+
+    def __getitem__(self, name):
+        return self.get_var(name).union(self.get_func(name))
 
 def updatedic(var_id, val):
     if var_id not in vartodic:
@@ -23,10 +44,6 @@ def get_restype(fname, args=[]):
         return funcs[fname].call(args)
     if fname in funcres:
         return st(funcres[fname])
-        '''
-    if fname in argfunc:
-        return argfunc[fname](args)
-        '''
     return st(Any)
 
 class SingleHandlers:
@@ -104,22 +121,7 @@ class MultiHandlers:
             res = {Bottom}
         return TypeSet(res)
     
-class Definitions:
-           
-    @staticmethod
-    def FunctionDef(func):
-        args = func.args
-        defaults = [value_to_type(i) for i in args.defaults]
-        tup = (args.args, args.vararg, args.varargannotation, args.kwonlyargs, args.kwarg, args.kwargannotation, defaults, args.kw_defaults)
-        returns = value_to_type(func.body[0].value)
-        f=TFunc(func.name, tup, returns)
-        funcs[func.name] = f
-        print(f)
-        
-'''
-Module(body=[FunctionDef(name='foo', args=arguments(args=[], vararg=None, varargannotation=None, kwonlyargs=[], kwarg=None, kwargannotation=None, defaults=[], kw_defaults=[]),
-                          body=[Return(value=NameConstant(value=None))], decorator_list=[], returns=None)])
-'''                          
+               
 typetofunc_single = {
               ast.Num : SingleHandlers.Num,
               ast.Str : SingleHandlers.Str,
@@ -134,6 +136,10 @@ typetofunc_multi = {
               ast.Attribute : MultiHandlers.Attribute,
               }
 
+def getseq(expr):
+    return TypeSet({v for v in value_to_type(expr.iter) if augisinstance(v, TSeq)})
+
+
 def value_to_type(value):
     if type(value) in typetofunc_single:
         res = st(typetofunc_single[type(value)](value))
@@ -144,37 +150,63 @@ def value_to_type(value):
         res = st(Any)
     return res
 
-def do_assign(ass):
-    target = ass.targets[0]
-    val = value_to_type(ass.value)
-    if isinstance(target, ast.Name):
-        updatedic(target.id, val)
-    elif isinstance(target, ast.Tuple):
-        size = len(target.elts)
-        target_matrix = [v.split_to(size) for v in val if augisinstance(v, TSeq) and v.can_split_to(size)]
-        assert target_matrix != []
-        target_tuple = [TypeSet.union_all([v[i] for v in target_matrix]) for i in range(size)]
-        for name, objset in zip(target.elts, target_tuple):
-            updatedic(name.id, objset)
+class Module:
+    def __init__(self, ast_module, parent=None):
+        self.module = ast_module
+        self.parent = parent
+        self.parse(self.module.body)
     
-def getseq(expr):
-    return TypeSet({v for v in value_to_type(expr.iter) if augisinstance(v, TSeq)})
+    def do_assign(self, ass):
+        val = value_to_type(ass.value)
+        for target in ass.targets:
+            if isinstance(target, ast.Name):
+                updatedic(target.id, val)
+            elif isinstance(target, ast.Tuple):
+                size = len(target.elts)
+                target_matrix = [v.split_to(size) for v in val if augisinstance(v, TSeq) and v.can_split_to(size)]
+                assert target_matrix != []
+                target_tuple = [TypeSet.union_all([v[i] for v in target_matrix]) for i in range(size)]
+                for name, objset in zip(target.elts, target_tuple):
+                    updatedic(name.id, objset)
 
-def do_for(fstat):
-    val = getseq(fstat)
-    assert val != []
-    for i in val:
-        updatedic(fstat.target.id, i.typeset())
+    def do_func(self, func):
+        args = func.args
+        defaults = [value_to_type(i) for i in args.defaults]
+        tup = (args.args, args.vararg, args.varargannotation, args.kwonlyargs, args.kwarg, args.kwargannotation, defaults, args.kw_defaults)
+        returns = value_to_type(func.body[0].value)
+        f=TFunc(func.name, tup, returns)
+        funcs[func.name] = f
+    
+    def do_for(self, forstat):
+        val = getseq(forstat)
+        assert val != []
+        for i in val:
+            updatedic(forstat.target.id, i.typeset())
+        return self.parse(forstat.body)
+        
+    def do_if(self, ifstat):
+        return self.parse(ifstat.body)
+    
+    def parse(self, body):
+        for stat in body:
+            if isinstance(stat, ast.Assign):
+                self.do_assign(stat)
+            elif isinstance(stat, ast.FunctionDef):
+                self.do_func(stat)
+            elif isinstance(stat, ast.For):
+                self.do_for(stat)
+            elif isinstance(stat, (ast.If, ast.While)):
+                self.do_if(stat)
+            elif isinstance(stat, ast.Return):
+                self.do_for(stat)                
+            elif isinstance(stat, ast.Expr):
+                pass #assuming no side-effects for now
+            else:
+                print('unknown:', stat, stat.lineno, stat.value.s)
 
 def walk(filename):
-    s = list(ast.walk(ast.parse(open(filename).read())))
-    for i in s:
-        if isinstance(i, ast.Assign):
-            do_assign(i)
-        if isinstance(i, ast.For):
-            do_for(i) 
-        if isinstance(i, ast.FunctionDef):
-            Definitions.FunctionDef(i)
+    f_ast = ast.parse(open(filename).read())
+    Module(f_ast)
 
     for i, j in funcs.items():
         print(i,': ', j)
