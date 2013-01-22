@@ -16,9 +16,11 @@ for i in range(n):
     a,b=b,sum([a,b])
     fff=5
     
+return 7
+    
     
 b1, b2, b3 = 0, 0.0, ''
-if True:
+while True:
     b1, b2, b3 = b3, b1, b2
 '''
 

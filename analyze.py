@@ -5,7 +5,6 @@ from types import *
 
 class SymTable:
     constants = {'None' : st(NONE), 'False' : st(BOOL), 'True' : st(BOOL)}
-    
     def __init__(self):
         self.vars = {}
 
@@ -97,6 +96,9 @@ class Module:
             return Empty
         return res
     
+    def NameConstant(self, value):
+        return self.lookup(value.value)
+    
     def get_attr_types(self, attr, this):
         return {i.dict[attr] for i in self.value_to_type(this) if attr in i.dict}
     
@@ -121,9 +123,10 @@ class Module:
 
     def value_to_type(self, value):
         assert isinstance(value, (ast.Num, ast.Str, ast.Dict, ast.Tuple, ast.List, ast.ListComp,
-                                  ast.Name, ast.Call, ast.Attribute, ast.Bytes))
+                                  ast.Name, ast.Call, ast.Attribute, ast.Bytes, ast.NameConstant))
         
         typetofunc_single = {
+                      ast.NameConstant : Module.NameConstant,
                       ast.Num : Module.Num,
                       ast.Str : Module.Str,
                       ast.Bytes : Module.Bytes,
@@ -153,8 +156,11 @@ class Module:
     def __init__(self, body, parent=None):
         self.body = body
         self.parent = parent
-        self.sym = SymTable()
+        self.sym = SymTable() 
 
+    def import_module(self, module):
+        self.sym = module.sym
+        
     def do_assign(self, ass):
         newsym = SymTable()
         val = self.value_to_type(ass.value)
@@ -198,7 +204,6 @@ class Module:
         returns = TypeSet({})
         while True:
             sym, ret = self.do_if(stat)
-            print(sym)
             returns.update(ret)
             old_sym = repr(self.sym)
             self.sym.merge(sym)
@@ -245,11 +250,14 @@ class Module:
 
 def walk(filename, module = None):
     f_ast = ast.parse(open(filename).read())
-    m=Module(f_ast.body, module)
+    m=Module(f_ast.body)
+    if module:
+        m.import_module(module)
     m.parse()
     return m
 
 if __name__=='__main__':
-    m = walk('test/parsed.py', walk('database/functions.py'))
+    m = walk('database/functions.py')
+    m = walk('test/parsed.py', m)
     print(*['{0} : {1}'.format(k,v) for k,v in m.sym.vars.items()], sep='\n')
     
