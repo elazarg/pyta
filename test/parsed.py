@@ -1,21 +1,34 @@
-'''
-'''
-K=print(5)
-n=round(5.0)
-x=5,5.5
-x=('fd', None)
-z,t=x
-M=n=3
+vx=0
+vf=0.0
+vs=''
+bt=b''
+true, false, none = True, False, None
+
+d1=1
+d1=0.0
+
+tx=5,5.5
+tx=('fd', None)
+q,t=tx
+M=N=3
+
 a,b=0,1
 d={'hello': 1, 'world' : 'f', 'wa' : 1.3 }
 for k in (1,2):    print(k)
-def foo():    return None
+def foo():
+    def bla():
+        return 5
+    z=bla()
+    return z
 r=[j for j in (1,2,3)]
-t=x.count('sd')
+K=print(5)
+n=round(5.0)
+t=tx.count('sd')
 for i in range(n):
     a,b=b,sum([a,b])
     fff=5
-    
+
+'''
 return 7
     
     
@@ -27,4 +40,3 @@ while True:
 
  
 print('hello')
-'''

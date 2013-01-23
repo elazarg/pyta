@@ -1,59 +1,26 @@
 #!/sbin/python3
 
 import ast
+from typeset import Empty, Any
 from types import *
+from symtable import SymTable
 
-class SymTable:
-    constants = {'None' : st(NONE), 'False' : st(BOOL), 'True' : st(BOOL)}
-    def __init__(self):
-        self.vars = {}
-
-    def update(self, var_id, valset):
-        if var_id not in self.vars:
-            self.vars[var_id] = TypeSet({})
-        self.vars[var_id].update(valset)
-
-    def update_func(self, fname, func):
-        if fname not in self.vars:
-            self.vars[fname] = TypeSet({})
-        self.vars[fname].add(func)
-        
-    def merge(self, other):
-        assert isinstance(other, SymTable)
-        for k,v in other.vars.items():
-            self.update(k, v)
-        
-    def get_var(self, name):
-        consts = SymTable.constants.get(name, TypeSet({}))
-        return self.vars.get(name, TypeSet({})).union(consts)
-
-    def __getitem__(self, name):
-        return self.get_var(name)
-
-    def __repr__(self):
-        return '{0}'.format(repr(self.vars))
-    
-    def __eq__(self, other):
-        return isinstance(other, SymTable) and self.vars == other.vars
-    
-    def __len__(self):
-        return len(self.vars)
-    
-    def includes(self, other):
-        return isinstance(other, SymTable) and all( (i,j) in self.vars.items() for i,j in other.vars.items())
-    
 def augisinstance(s, t):
     return s==Any or isinstance(s,t)
 
-class Module:
+class Globals:
+    sym = SymTable()
+
+class Expr:
+    def __init__(self):
+        pass
+    
     def lookup(self, name):
-        res = self.sym[name]
+        res = Globals.sym[name]
         if len(res) > 0:
             return res
-        if self.parent == None:
-            return Empty
-        return self.parent.lookup(name) 
-        
+        return Empty
+     
     def Num(self, value):
         if isinstance(value.n, int):
             return INT
@@ -77,18 +44,6 @@ class Module:
     def List(self, value):
         return TList([self.value_to_type(i) for i in value.elts])
 
-    def ListComp(self, value):
-        name = value.generators[0].target.id
-        val = self.getseq(value.generators[0])
-        assert val != []
-        t_mod = Module(self)
-        for i in val:
-            t_mod.sym.update(name, i.typeset())
-        vall = t_mod.value_to_type(value.elt)
-        res = TSeq.fromset(vall)
-        assert not isinstance(res, TypeSet)
-        return res
-
     def Name(self, value):
         res = self.lookup(value.id)
         assert isinstance(res, TypeSet)
@@ -97,11 +52,18 @@ class Module:
         return res
     
     def NameConstant(self, value):
-        return self.lookup(value.value)
+        c = {None : NONE, False : BOOL, True : BOOL}
+        return c[value.value]
     
     def get_attr_types(self, attr, this):
         return {i.dict[attr] for i in self.value_to_type(this) if attr in i.dict}
     
+    def Attribute(self, value):
+        res = self.get_attr_types(value.attr, value.value)
+        if len(res)==0:
+            return Empty
+        return TypeSet(res)
+
     def Call(self, value):
         args = [self.value_to_type(i) for i in value.args]
         func = value.func
@@ -114,150 +76,164 @@ class Module:
             res = TypeSet.union_all([foo(args) for foo in acc])
         assert isinstance(res, TypeSet)
         return res
-
-    def Attribute(self, value):
-        res = self.get_attr_types(value.attr, value.value)
-        if len(res)==0:
-            return Empty
-        return TypeSet(res)
-
+    
     def value_to_type(self, value):
         assert isinstance(value, (ast.Num, ast.Str, ast.Dict, ast.Tuple, ast.List, ast.ListComp,
-                                  ast.Name, ast.Call, ast.Attribute, ast.Bytes, ast.NameConstant))
-        
-        typetofunc_single = {
-                      ast.NameConstant : Module.NameConstant,
-                      ast.Num : Module.Num,
-                      ast.Str : Module.Str,
-                      ast.Bytes : Module.Bytes,
-                      ast.Dict : Module.Dict,
-                      ast.Tuple : Module.Tuple,
-                      ast.List : Module.List,
-                      ast.ListComp : Module.ListComp
-                      }
-        typetofunc_multi = {
-                      ast.Name : Module.Name,
-                      ast.Call : Module.Call,
-                      ast.Attribute : Module.Attribute,
-                      }
+                                  ast.Name, ast.Call, ast.Attribute, ast.Bytes, ast.NameConstant))   
         v_type = type(value) 
-        if v_type in typetofunc_single:
-            res = st(typetofunc_single[v_type](self, value))
-        elif v_type in typetofunc_multi:
-            res = typetofunc_multi[v_type](self, value)
+        if v_type in Expr.typetofunc_single:
+            res = st(Expr.typetofunc_single[v_type](self, value))
+        elif v_type in Expr.typetofunc_multi:
+            res = Expr.typetofunc_multi[v_type](self, value)
         else:
             print(value)
             res = st(Any)
         return res
     
+    def ListComp(self, value):
+        gen = value.generators[0]
+        name = gen.target.id
+        val = self.getseq(gen)
+        assert val != []
+        Globals.sym.push()
+        for i in val:
+            Globals.sym.update(name, i.typeset())
+        vall = self.value_to_type(value.elt)
+        Globals.sym.pop()
+        res = TSeq.fromset(vall)
+        assert not isinstance(res, TypeSet)
+        return res
+    
+    typetofunc_single = {
+                  ast.NameConstant : NameConstant,
+                  ast.Num : Num,
+                  ast.Str : Str,
+                  ast.Bytes : Bytes,
+                  ast.Dict : Dict,
+                  ast.Tuple : Tuple,
+                  ast.List : List,
+                  ast.ListComp : ListComp
+                  }
+    typetofunc_multi = {
+                  ast.Name : Name,
+                  ast.Call : Call,
+                  ast.Attribute : Attribute,
+                  }
+    
     def getseq(self, expr):
         return TypeSet({v for v in self.value_to_type(expr.iter) if augisinstance(v, TSeq)})
-
-    def __init__(self, body, parent=None):
-        self.body = body
-        self.parent = parent
-        self.sym = SymTable() 
+    
+class Module:
+    def __init__(self):
+        self.sym = Globals.sym 
+        self.expr = Expr()
 
     def import_module(self, module):
         self.sym = module.sym
         
     def do_assign(self, ass):
-        newsym = SymTable()
-        val = self.value_to_type(ass.value)
+        val = self.expr.value_to_type(ass.value)
         for target in ass.targets:
             if isinstance(target, ast.Name):
-                newsym.update(target.id, val)
+                self.sym.update(target.id, val)
             elif isinstance(target, ast.Tuple):
                 size = len(target.elts)
                 target_matrix = [v.split_to(size) for v in val if augisinstance(v, TSeq) and v.can_split_to(size)]
                 assert target_matrix != []
                 target_tuple = [TypeSet.union_all([v[i] for v in target_matrix]) for i in range(size)]
                 for name, objset in zip(target.elts, target_tuple):
-                    newsym.update(name.id, objset)
-        return newsym
+                    self.sym.update(name.id, objset)
 
     def do_func(self, func):
         args = func.args
-        defaults = [self.value_to_type(i) for i in args.defaults]
+        defaults = [self.expr.value_to_type(i) for i in args.defaults]
         tup = (args.args, args.vararg, args.varargannotation, args.kwonlyargs, args.kwarg, args.kwargannotation, defaults, args.kw_defaults)
         #TODO : add type variables
-        m = Module(func.body, self)
-        returns = m.parse()
+        #TODO : support self-references through symtable
+        self.sym.push()
+        returns = self.run(func.body)
+        self.sym.pop()
         res = TFunc(func.name, tup, returns)
         return func.name, res
     
-    def do_for(self, stat):
-        val = self.getseq(stat)
-        assert val != []
-        for i in val:
-            self.sym.update(stat.target.id, i.typeset())
-        m = Module(stat.body, self)
-        returns = m.parse()
-        return m.sym, returns
+    def do_class(self, cls):
+        assert isinstance(cls, ast.ClassDef)
+        #TODO : support self-references through symtable
+        #assume for now that methods only calls previous ones
+        c = TClass(cls.name, cls.bases, cls.keywords, cls.starargs, cls.kwargs)
+        m = Module(cls.body, self)
+        returns = m.run()
+        c.update_namespace(m)
+        assert len(returns)==0
+        return cls.name, c
+    
         
     def do_if(self, stat):
-        m = Module(stat.body, self)
-        returns = m.parse()
-        return m.sym, returns
+        return self.run(stat.body)
     
     def do_while(self, stat):
-        returns = TypeSet({})
         while True:
-            sym, ret = self.do_if(stat)
-            returns.update(ret)
             old_sym = repr(self.sym)
-            self.sym.merge(sym)
+            ret = self.do_if(stat)
             new_sym = repr(self.sym)
-            if (old_sym==new_sym):
-                break
-        return sym, returns
+            if old_sym == new_sym:
+                return ret
+    
+    def do_for(self, stat):
+        val = self.expr.getseq(stat)
+        if len(val)==0:
+            return Empty
+        
+        for i in val:
+            self.sym.update(stat.target.id, i.typeset())
+        return self.do_while(stat)
     
     def do_return(self, ret):
-        return self.value_to_type(ret.value)
-    
-    def parse(self):
+        return self.expr.value_to_type(ret.value)
+
+
+    returnable = { 
+            ast.For : do_for,
+            ast.If : do_if,
+            ast.While : do_while,
+            ast.Return : do_return
+    }
+        
+    def run(self, body):
         returns = TypeSet({})
-        for stat in self.body:
-            newreturn = TypeSet({})
-            newsym = SymTable()
-            if isinstance(stat, ast.Assign):
-                newsym = self.do_assign(stat)
-            elif isinstance(stat, ast.FunctionDef):
+        for stat in body:
+            if isinstance(stat, ast.FunctionDef):
                 fname, fobj = self.do_func(stat)
                 self.sym.update_func(fname, fobj)
-            elif isinstance(stat, ast.For):
-                newsym, newreturn = self.do_for(stat)
-            elif isinstance(stat, ast.If):
-                newsym, newreturn = self.do_if(stat)
-            elif isinstance(stat, ast.While):
-                newsym, newreturn = self.do_while(stat)
-            elif isinstance(stat, ast.Return):
-                newreturn = self.do_return(stat)
+            elif isinstance(stat, ast.ClassDef):
+                cname, cobj = self.do_class(stat)
+                self.sym.update_func(cname, cobj)
+            elif isinstance(stat, ast.Assign):
+                self.do_assign(stat)
+            elif type(stat) in Module.returnable:
+                ret = Module.returnable[type(stat)](self, stat)
+                returns.update(ret)
             elif isinstance(stat, ast.Expr):
-                pass #assuming no side-effects for now
+                #assuming no side-effects for now
+                pass 
             elif isinstance(stat, ast.Pass):
                 pass
             else:
                 print('unknown:', stat, stat.lineno, stat.value.s)
-            self.sym.merge(newsym)
-            returns.update(newreturn)
-        if len(returns) > 0 and self.parent == None:
+        if len(returns) > 0 and len(self.sym) == 1:
             print('top level return error')
-        if len(returns) == 0 and self.parent != None:
+        if len(returns) == 0 and len(self.sym) != 1:
             returns = st(NONE)
         assert isinstance(returns, TypeSet)
         return returns
 
-def walk(filename, module = None):
-    f_ast = ast.parse(open(filename).read())
-    m=Module(f_ast.body)
-    if module:
-        m.import_module(module)
-    m.parse()
-    return m
+def readfile(filename, module = None):
+    return ast.parse(open(filename).read()).body
 
 if __name__=='__main__':
-    m = walk('database/functions.py')
-    m = walk('test/parsed.py', m)
-    print(*['{0} : {1}'.format(k,v) for k,v in m.sym.vars.items()], sep='\n')
+    m = Module()
+    #m.run(readfile('database/functions.py'))
+    m.run(readfile('test/parsed.py'))
+    print(m.sym)
+    #print(*['{0} : {1}'.format(k,v) for k,v in m.sym.vars.items()], sep='\n')
     

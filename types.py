@@ -1,20 +1,10 @@
-from typeset import TypeSet, st, Empty, Any
+from typeset import TypeSet, st
 from itertools import product
 
 class TObject:
     def __init__(self, t=object):
         self.type = t
-        self.dict = dict.fromkeys(['__eq__', '__ge__', '__le__', '__lt__', '__ne__', '__gt__'], lambda x : st(bool))
-        self.dict['__class__'] = lambda : st(NONE)
-        self.dict['__delattr__'] = lambda x : st(NONE)
-        self.dict['__setattr__'] = lambda x : st(NONE)
-        self.dict['__sizeof__']  = lambda : st(INT)
-        self.dict['__doc__'] = lambda : st(TSeq([st(STR)]))
-        self.dict['__repr__'] = lambda x : st(STR)
-        self.dict['__str__'] = lambda x : st(STR)
-        self.dict['__hash__']= lambda x : st(STR)
-        self.dict['__init__'] = lambda *x : st(self)
-        self.dict['__new__'] = lambda *x : st(self)
+        self.dict = {}
 
     def __repr__(self):
         return repr(self.type).split(sep="'")[1]
@@ -23,17 +13,6 @@ class TObject:
 class TNum(TObject):
     def __init__(self, t):
         self.dict = {}
-        self.dict.fromkeys(['__rpow__', '__rtruediv__', '__mod__', '__radd__', '__truediv__', '__sub__',
-                             '__rfloordiv__', '__pow__', '__add__', '__floordiv__', '__rmul__', '__rsub__',
-                              '__rmod__', '__float__', '__mul__'], lambda x, y : st(TNum()))
-        self.dict['__bool__'] = lambda : st(TObject(bool))
-        self.dict.update(dict.fromkeys(['__abs__','__neg__','conjugate'], lambda x : st(self)))
-        self.dict.update(dict.fromkeys(['__ceil__','bit_length','denominator','numerator', 'real',
-                             '__invert__','__round__','__trunc__'], lambda : st(TNum())))
-        self.dict['__int__'] = lambda x : st(INT)
-        self.dict['imag'] = lambda x : st(TNum(complex) )
-        self.dict['from_bytes'] = lambda x : st(TNum())
-        self.dict['to_bytes'] = lambda x : st(TObject(bytes))
     
     def get_dict(self):
         return {i:j for i,j in list(self.dict.items())+list(super.get_dict(self).items())}
@@ -43,10 +22,8 @@ class TNum(TObject):
 
 class TInt(TNum):
     def __init__(self, t=int):
-        self.dict = dict.fromkeys(['__rshift__', '__rand__', '__ror__', '__xor__', '__floor__', '__rlshift__','__lshift__'
-                             , '__and__', '__rrshift__', '__rxor__', '__or__'], lambda x, y : st(INT))
-        self.dict['__divmod__']=self.dict['__rdivmod__'] = lambda x,y : st(TTuple([st(INT), st(INT)]))
-
+        pass
+    
     def __repr__(self):
         return "int"
 
@@ -59,12 +36,8 @@ class TBool(TNum):
 
 class TFloat(TNum):
     def __init__(self, t=float):
-        self.dict = {}
-        self.dict['fromhex'] = lambda x : st(self)
-        self.dict['hex'] = lambda : st(STR)
-        self.dict['as_integer_ratio'] = lambda x : st(TTuple([st(INT), st(INT)]))
-        self.dict['is_integer'] = lambda : st(BOOL)
-
+        pass
+    
     def __repr__(self):
         return "float"
 
@@ -117,19 +90,8 @@ class TDict(TSeq):
 
 class TTuple(TSeq):
     def __init__(self, tvalues):
-        self.dict = {}
-        self.dict.update(dict.fromkeys(['sort', '__setitem__', 'extend', '__delitem__', 'append', 'reverse'],
-                            lambda : st(type(None))))
-        
-        self.dict.update(dict.fromkeys(['index', '__len__', 'count'], lambda x : st(INT)))
-        self.dict.update(dict.fromkeys(['remove', 'insert'],lambda x : st(type(None))) )
-        
-        self.dict.update(dict.fromkeys(['__getitem__', 'pop'], self.typeset))
-        self.dict['is_integer'] = lambda : st(TObject(bool))
-        self.dict.update(dict.fromkeys(['__reversed__', '__iter__'], lambda : st(self)))
-        self.dict.update(dict.fromkeys(['__imul__', '__add__', '__rmul__' , '__mul__','__iadd__'],
-                            lambda x : st(TSeq(self.typeset()))) )
         self.types = tuple(tvalues)
+        self.dict=TObject().dict
    
     def __len__(self):
         return len(self.types)
@@ -202,6 +164,11 @@ class TFunc(TObject):
     def call(self, actual_args):
         assert self.ismatch(actual_args)
         return self.returns
+
+class TClass(TObject):
+    def __init__(self):
+        pass
+    
 
 BOOL = TObject(bool)
 STR = TStr(str)
