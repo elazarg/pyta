@@ -82,9 +82,10 @@ class Expr:
         return c[value.value]
     
     def get_attr_types(self, expr):
-        return TypeSet.union_all({c.get_type_attr(expr.attr)
-                 for c in self.value_to_type(expr.value)
-                  if c.has_type_attr(expr.attr)})
+        return TypeSet.union_all({
+                c.get_type_attr(expr.attr)
+                for c in self.value_to_type(expr.value)
+                if c.has_type_attr(expr.attr)})
     
     def Attribute(self, value):
         res = self.get_attr_types(value)
@@ -94,11 +95,11 @@ class Expr:
 
     def Call(self, value):
         value.args = [self.value_to_type(i) for i in value.args]
-        for i in value.keywords:
-            i.value = self.value_to_type(i.value)
+        for keyword in value.keywords:
+            keyword.value = self.value_to_type(keyword.value)
         func = value.func
         if isinstance(func, ast.Name):
-            res = TypeSet.union_all([foo.call(value) for foo in self.sym[func.id]
+            res = TypeSet.union_all([foo.call(value) for foo in self.value_to_type(func)
                                       if augisinstance(foo, TFunc) and foo.ismatch(value)])
         elif isinstance(func, ast.Attribute):
             acc = self.get_attr_types(func)
@@ -158,7 +159,7 @@ class Expr:
     
     def create_func(self, args, returns, t):
         args.defaults = [self.value_to_type(i) for i in args.defaults]
-        args.kw_defaults = [self.value_to_type(i) for i in args.kw_defaults]
+        args.kw_defaults = [(self.value_to_type(i) if i != None else i) for i in args.kw_defaults ]
         return TFunc(args, returns, t)
     
 class Module:

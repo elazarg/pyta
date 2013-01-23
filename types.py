@@ -15,7 +15,7 @@ class TNum(TObject):
         self.dict = {}
     
     def get_dict(self):
-        return {i:j for i,j in list(self.dict.items())+list(super.get_dict(self).items())}
+        return {i:j for i, j in list(self.dict.items()) + list(super.get_dict(self).items())}
 
     def __repr__(self):
         return "num"     
@@ -43,7 +43,7 @@ class TFloat(TNum):
 
 class TSeq(TObject):
     def __init__(self, *targs):
-        self.dict=TObject().dict
+        self.dict = TObject().dict
         self.types = set(targs)
     
     def typeset(self):
@@ -68,39 +68,39 @@ class TSeq(TObject):
         self.types.update(tlist)
     
     def __repr__(self):
-        return "Seq(" + repr(self.types) +")"
+        return "Seq(" + repr(self.types) + ")"
 
     def get_dict(self):
-        return {i:j for i,j in list(self.dict.items())+list(super.get_dict(self).items())} 
+        return {i:j for i, j in list(self.dict.items()) + list(super.get_dict(self).items())} 
 
 
 class TIter(TSeq):
     def __repr__(self):
-        return "Iter(" + repr(self.types) +")"
+        return "Iter(" + repr(self.types) + ")"
 
 class TDict(TSeq):
     def __init__(self, tkeys, tvalues):
         self.dict = {}            
         skeys = TypeSet.union_all(tkeys) if len(tkeys) != 0 else TypeSet({})
-        temp = set(sum([list(product(k,v)) for k,v in zip(tkeys, tvalues)], []))
-        self.types = { k : TypeSet([v for tk, v in temp if tk==k]) for k in skeys}
+        temp = set(sum([list(product(k, v)) for k, v in zip(tkeys, tvalues)], []))
+        self.types = { k : TypeSet([v for tk, v in temp if tk == k]) for k in skeys}
     
     def __repr__(self):
-        return "Dict(" + repr(self.types) +")"
+        return "Dict(" + repr(self.types) + ")"
 
 class TTuple(TSeq):
     def __init__(self, tvalues):
         self.types = tuple(tvalues)
-        self.dict=TObject().dict
+        self.dict = TObject().dict
    
     def __len__(self):
         return len(self.types)
  
     def can_split_to(self, n):
-        return len(self.types)==n
+        return len(self.types) == n
     
     def split_to(self, n):
-        assert len(self.types)==n
+        assert len(self.types) == n
         return self.types 
  
     def typeset(self):   
@@ -110,7 +110,7 @@ class TTuple(TSeq):
         return repr(self.types)
 
     def get_dict(self):
-        return {i:j for i,j in list(self.dict.items())+list(super.get_dict(self).items())} 
+        return {i:j for i, j in list(self.dict.items()) + list(super.get_dict(self).items())} 
 
 
 class TList(TTuple):
@@ -119,7 +119,7 @@ class TList(TTuple):
     
 class TSet(TTuple):
     def __repr__(self):
-        return "Set(" + repr(self.types) +")"
+        return "Set(" + repr(self.types) + ")"
     
 class TStr(TTuple):
     def __init__(self, t): 
@@ -145,14 +145,20 @@ class TArguments():
     kw_defaults=[Num(n=0)])"
     '''
     def __init__(self, arg):
-        self.args = [i.arg for i in arg.args]
+        rearg = [i.arg for i in arg.args]
+        size = len(arg.defaults)
+        self.pos = rearg[:-size] if size > 0 else rearg
+        self.defs = list(zip(rearg[-size:] , arg.defaults))        
+        #self.args = [i.arg for i in arg.args]
+        #self.defaults = arg.defaults
+        
         self.vararg = arg.vararg
         self.varargannotation = arg.varargannotation
         self.kwonlyargs = [i.arg for i in arg.kwonlyargs]
         self.kwarg = arg.kwarg
         self.kwargannotation = arg.kwargannotation
-        self.defaults = arg.defaults
         self.kw_defaults = arg.kw_defaults
+        
     '''    
     >>> ast.dump(ast.parse('foo(z,y=6,*[1])').body[0].value)
     "Call(    func=Name(id='foo', ctx=Load()),
@@ -163,42 +169,43 @@ class TArguments():
     '''
     def ismatch(self, actual):
         bind = {}
-        z = zip(self.args, actual.args)
-        bind.update(z)
-        for i in actual.keywords:
-            if i.arg in bind:
-                #double assignment
+        bind.update(zip(self.pos, actual.args))
+        for keyword in actual.keywords:
+            if keyword.arg in bind:
+                # double assignment
+                print('double assignment: ', keyword.arg)
                 return False
-            bind[i.arg] = i.value
-        leftover = set(self.args).difference(bind.keys())
+            bind[keyword.arg] = keyword.value
+        bind.update(self.defs)                        
+        leftover = set(self.pos) - set(bind.keys())
         if len(leftover) > 0:
-            #positional parameter left
+            # positional parameter left
+            print('positional parameter left:', leftover)
             return False
-        for k,v in zip(self.kwonlyargs, self.kw_defaults):
+        for k, v in zip(self.kwonlyargs, self.kw_defaults):
             if k not in bind and v != None:
-                bind[k]=v
+                bind[k] = v
         leftover_keys = set(self.kwonlyargs).difference(bind.keys())
         if len(leftover_keys) > 0:
-            #keyword-only parameter left
-            print(leftover)
+            # keyword-only parameter left
+            print('keyword-only parameter left:', leftover_keys)
             return False 
         return True
 
     def __repr__(self):
-        size = len(self.defaults)
-        pos  = ', '.join(self.args[:-size] if size > 0 else self.args)
-        defs = ', '.join('{0}={1}'.format(k,v) for k,v in zip(self.args[-len(self.defaults):] , self.defaults))
+        pos = repr(self.pos)[1:-1]
+        defs = ', '.join('{0}={1}'.format(k,v) for k,v in self.defs)
         varargs = None
         if self.vararg:
             varargs = '*' + self.vararg
             if self.varargannotation:
                 varargs += ':' + repr(self.varargannotation)
-        kws = ', '.join('{0}={1}'.format(k,v) for k,v in zip(self.kwonlyargs, self.kw_defaults))
+        kws = ', '.join(('{0}={1}'.format(k, v) if v else k) for k, v in zip(self.kwonlyargs, self.kw_defaults))
         kwargs = '**' + self.kwarg if self.kwarg else None
-            
+        
         return '(' + ', '.join(i for i in [pos, defs, varargs, kws, kwargs] if i) + ')'
 
-#TODO argslist as a class
+# TODO argslist as a class
 class TFunc(TObject):
     def __init__(self, args, returns, t):
         self.t = t
@@ -210,7 +217,11 @@ class TFunc(TObject):
         return self.t + ' {0} -> {1}'.format(repr(self.args), self.returns)
         
     def ismatch(self, actual_args):
-        return self.args.ismatch(actual_args)
+        res = self.args.ismatch(actual_args)
+        if not res:
+            import ast
+            print(ast.dump(actual_args), 'does not match', repr(self.args))
+        return res
         
     def call(self, actual_args):
         assert self.ismatch(actual_args)

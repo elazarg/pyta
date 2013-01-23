@@ -1,13 +1,12 @@
 
-def foo(x, y=5, *g, t=17, **P):
+def foo(x, y=5, *g, t, q=98, **P):
     def bla():
         return 5
     z=bla()
     return z
 
-x=foo(2)
-
-x=foo(5, x=6)
+x=foo(2, t=3)
+x=foo(5, y=6, t=17)
 
 bar = lambda x : 5
 
@@ -17,8 +16,6 @@ def poo(x, y=2):
     z=bla()
     return z
 
-
-'''
 vx=0
 vf=0.0
 vs=''
@@ -56,7 +53,7 @@ b1, b2, b3 = 0, 0.0, ''
 while True:
     b1, b2, b3 = b3, b1, b2
 
-def foo(self):
+def fooga(self):
     return 4
 '''
 
@@ -69,4 +66,3 @@ class A:
 #r=foo(2)
 z=A.x
 t=A.foo(1)
-'''
