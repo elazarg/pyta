@@ -1,3 +1,13 @@
+
+def foo(x, y=5, *g, t=17, **P):
+    def bla():
+        return 5
+    z=bla()
+    return z
+
+x=foo(2)
+
+x=foo(5, x=6)
 '''
 vx=0
 vf=0.0
@@ -24,7 +34,7 @@ def foo():
 r=[j for j in (1,2,3)]
 K=print(5)
 n=round(5.0)
-t=tx.count('sd')
+
 for i in range(n):
     a,b=b,sum([a,b])
     fff=5
@@ -40,6 +50,7 @@ def foo(self):
     return 4
 '''
 
+'''
 class A:
     x=5
     def foo(self):
@@ -48,3 +59,4 @@ class A:
 #r=foo(2)
 z=A.x
 t=A.foo(1)
+'''

@@ -1,5 +1,37 @@
 #!/sbin/python3
 
+'''
+TODO:
+
+* better ListComp (more specific)
+* add binop support
+* type variables
+* augmented assignment
+* better signature match
+* single-valued-ints
+* Exceptions
+
+* better type-error warnings
+* strict support for some sublanguage
+* milestone - sit with Yuri/Eran
+
+* attributes
+* metaclasses
+
+* less wild imports
+* use visitors or something
+* 
+
+* basic control flow
+* full CFG
+*
+
+* porting to c++ ?
+* porting to datalog ?!
+* some DSL
+* basic framework
+'''
+
 import ast
 from typeset import Empty, Any
 from types import *
@@ -61,14 +93,16 @@ class Expr:
         return res
 
     def Call(self, value):
-        args = [self.value_to_type(i) for i in value.args]
+        value.args = [self.value_to_type(i) for i in value.args]
+        for i in value.keywords:
+            i.value = self.value_to_type(i.value)
         func = value.func
         if isinstance(func, ast.Name):
-            res = TypeSet.union_all([foo.call(args) for foo in self.sym[func.id]
-                                      if augisinstance(foo, TFunc) and foo.ismatch(args)])
+            res = TypeSet.union_all([foo.call(value) for foo in self.sym[func.id]
+                                      if augisinstance(foo, TFunc) and foo.ismatch(value)])
         elif isinstance(func, ast.Attribute):
             acc = self.get_attr_types(func)
-            res = TypeSet.union_all([foo.call(args) for foo in acc])
+            res = TypeSet.union_all([foo.call(value) for foo in acc])
         assert isinstance(res, TypeSet)
         return res
     
@@ -137,19 +171,18 @@ class Module:
 
     def Func(self, func):
         args = func.args
-        defaults = [self.expr.value_to_type(i) for i in args.defaults]
-        tup = (args.args, args.vararg, args.varargannotation, args.kwonlyargs, args.kwarg, args.kwargannotation, defaults, args.kw_defaults)
+        args.defaults = [self.expr.value_to_type(i) for i in args.defaults]
+        args.kw_defaults = [self.expr.value_to_type(i) for i in args.kw_defaults]
         #TODO : add type variables
         #TODO : support self-references through symtable
         self.sym.push()
         returns = self.run(func.body)
         self.sym.pop()
-        res = TFunc(func.name, tup, returns)
+        res = TFunc(func, returns)
         return func.name, res
     
     def Class(self, cls):
         assert isinstance(cls, ast.ClassDef)
-        #TODO : support self-references through symtable
         #assume for now that methods only calls previous ones
         c = TClass(cls.name, cls.bases, cls.keywords, cls.starargs, cls.kwargs)
         cur = {cls.name : st(c)}

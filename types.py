@@ -131,36 +131,86 @@ class TStr(TTuple):
     def typeset(self):   
         return st(TStr())
 
-class TArgs:
-    def __init__(self, argslist):
-        assert len(argslist) == 8
-        self.args, self.vararg, self.varargannotation = argslist[:3]
-        self.argnames = [i.arg for i in self.args]
-        self.kwonlyargs, self.kwarg, self.kwargannotation = argslist[3:6]
-        self.defaults, self.kw_defaults = argslist[6:]
-        
-    def __repr__(self):
-        regargs = self.argnames[:-len(self.defaults)]+['{0}={1}'.format(i,j) for i,j in zip(reversed(self.argnames), reversed(self.defaults))]
-        res = (i for i in (regargs, self.vararg, self.varargannotation, self.kwonlyargs, self.kwarg, self.kwargannotation, self.kw_defaults) if i)
-        return str(tuple(res))
-
-    def ismatch(self, actual_args):
-        return len(self.args)==len(actual_args)
        
+class TArguments():
+    '''
+    >>> ast.dump(ast.parse('def foo(a ,b1=5, *c, b2=0, **d): pass').body[0].args)
+    "arguments(
+    args=[arg(arg='a',        annotation=None),
+          arg(arg='b1',       annotation=None)],
+    vararg='c',               varargannotation=None,
+    kwonlyargs=[arg(arg='b2', annotation=None)],
+    kwarg='d',                kwargannotation=None,
+    defaults=[Num(n=5)],
+    kw_defaults=[Num(n=0)])"
+    '''
+    def __init__(self, arg):
+        self.args = [i.arg for i in arg.args]
+        self.vararg = arg.vararg
+        self.varargannotation = arg.varargannotation
+        self.kwonlyargs = [i.arg for i in arg.kwonlyargs]
+        self.kwarg = arg.kwarg
+        self.kwargannotation = arg.kwargannotation
+        self.defaults = arg.defaults
+        self.kw_defaults = arg.kw_defaults
+    '''    
+    >>> ast.dump(ast.parse('foo(z,y=6,*[1])').body[0].value)
+    "Call(    func=Name(id='foo', ctx=Load()),
+    args=[Name(id='z', ctx=Load())],
+    keywords=[keyword(arg='y', value=Num(n=6))],
+    starargs=List(elts=[Num(n=1)], ctx=Load()),
+    kwargs=None)"
+    '''
+    def ismatch(self, actual):
+        bind = {}
+        z = zip(self.args, actual.args)
+        bind.update(z)
+        for i in actual.keywords:
+            if i.arg in bind:
+                #double assignment
+                return False
+            bind[i.arg] = i.value
+        leftover = set(self.args).difference(bind.keys())
+        if len(leftover) > 0:
+            #positional parameter left
+            return False
+        for k,v in zip(self.kwonlyargs, self.kw_defaults):
+            if k not in bind and v != None:
+                bind[k]=v
+        leftover_keys = set(self.kwonlyargs).difference(bind.keys())
+        if len(leftover_keys) > 0:
+            #keyword-only parameter left
+            print(leftover)
+            return False 
+        return True
+
+    def __repr__(self):
+        pos  = ', '.join( v for v in self.args[:-len(self.defaults)])
+        defs = ', '.join('{0}={1}'.format(k,v) for k,v in zip(self.args[-len(self.defaults):] , self.defaults))
+        varargs = None
+        if self.vararg:
+            varargs = '*' + self.vararg
+            if self.varargannotation:
+                varargs += ':' + repr(self.varargannotation)
+        kws = ', '.join('{0}={1}'.format(k,v) for k,v in zip(self.kwonlyargs, self.kw_defaults))
+        kwargs = '**' + self.kwarg if self.kwarg else None
+            
+        return '(' + ', '.join(i for i in [pos, defs, varargs, kws, kwargs] if i) + ')'
+
 #TODO argslist as a class
 class TFunc(TObject):
-    def __init__(self, name, argslist, returns):
-        self.name = name
-        self.formal_params = TArgs(argslist)
+    def __init__(self, func, returns):
+        self.name = func.name
+        self.args = TArguments(func.args)
         assert isinstance(returns, TypeSet)
         self.returns = returns
     
     def __repr__(self):
-        return '{0}{1} -> {2}'.format(self.name, repr(self.formal_params), self.returns)
-    
+        return '{0}{1} -> {2}'.format(self.name, repr(self.args), self.returns)
+        
     def ismatch(self, actual_args):
-        return self.formal_params.ismatch(actual_args)
-
+        return self.args.ismatch(actual_args)
+        
     def call(self, actual_args):
         assert self.ismatch(actual_args)
         return self.returns

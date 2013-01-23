@@ -107,7 +107,9 @@ def str():
 def tuple():
     return ()
 
-def type():
+def type(x):
+    class type:
+        pass
     return type
 
 def vars():
