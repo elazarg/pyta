@@ -166,8 +166,17 @@ class TFunc(TObject):
         return self.returns
 
 class TClass(TObject):
-    def __init__(self):
-        pass
+    def __init__(self, name, bases, keywords, starargs, kwargs):
+        self.name, self.bases = name, bases
+        self.keywords, self.starargs, self.kwargs = keywords, starargs, kwargs
+        self.namespace = {}
+        
+    def update_namespace(self, dic):
+        self.namespace.update(dic)
+    
+    def __repr__(self):
+        attrepr = repr({i:j for i,j in self.namespace.items() if i != self.name})
+        return 'Class: {0}[{1}]'.format(self.name, attrepr) 
     
 
 BOOL = TObject(bool)

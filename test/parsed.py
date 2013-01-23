@@ -1,3 +1,4 @@
+'''
 vx=0
 vf=0.0
 vs=''
@@ -28,7 +29,6 @@ for i in range(n):
     a,b=b,sum([a,b])
     fff=5
 
-'''
 return 7
     
     
@@ -38,5 +38,7 @@ while True:
 '''
 
 
- 
-print('hello')
+class A:
+    x=5
+    def foo(self):
+        return 4

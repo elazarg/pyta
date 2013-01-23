@@ -12,6 +12,7 @@ class SymTable:
         self.vars =  [{}]
 
     def push(self, top={}):
+        assert isinstance(top, dict)
         self.vars.append(top)
 
     def pop(self):

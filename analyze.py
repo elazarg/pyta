@@ -161,10 +161,10 @@ class Module:
         #TODO : support self-references through symtable
         #assume for now that methods only calls previous ones
         c = TClass(cls.name, cls.bases, cls.keywords, cls.starargs, cls.kwargs)
-        m = Module(cls.body, self)
-        returns = m.run()
-        c.update_namespace(m)
-        assert len(returns)==0
+        cur = {cls.name : st(c)}
+        self.sym.push(cur)
+        m.run(cls.body, False)
+        c.update_namespace(self.sym.pop())
         return cls.name, c
     
         
@@ -199,7 +199,7 @@ class Module:
             ast.Return : do_return
     }
         
-    def run(self, body):
+    def run(self, body, can_return = True):
         returns = TypeSet({})
         for stat in body:
             if isinstance(stat, ast.FunctionDef):
@@ -222,8 +222,8 @@ class Module:
                 print('unknown:', stat, stat.lineno, stat.value.s)
         if len(returns) > 0 and len(self.sym) == 1:
             print('top level return error')
-        if len(returns) == 0 and len(self.sym) != 1:
-            returns = st(NONE)
+        if len(returns) == 0 and len(self.sym) != 1 and can_return:
+            returns = st(NONE)            
         assert isinstance(returns, TypeSet)
         return returns
 
