@@ -185,7 +185,8 @@ class TArguments():
         return True
 
     def __repr__(self):
-        pos  = ', '.join( v for v in self.args[:-len(self.defaults)])
+        size = len(self.defaults)
+        pos  = ', '.join(self.args[:-size] if size > 0 else self.args)
         defs = ', '.join('{0}={1}'.format(k,v) for k,v in zip(self.args[-len(self.defaults):] , self.defaults))
         varargs = None
         if self.vararg:
@@ -199,14 +200,14 @@ class TArguments():
 
 #TODO argslist as a class
 class TFunc(TObject):
-    def __init__(self, func, returns):
-        self.name = func.name
-        self.args = TArguments(func.args)
+    def __init__(self, args, returns, t):
+        self.t = t
+        self.args = TArguments(args)
         assert isinstance(returns, TypeSet)
         self.returns = returns
     
     def __repr__(self):
-        return '{0}{1} -> {2}'.format(self.name, repr(self.args), self.returns)
+        return self.t + ' {0} -> {1}'.format(repr(self.args), self.returns)
         
     def ismatch(self, actual_args):
         return self.args.ismatch(actual_args)

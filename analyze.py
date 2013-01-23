@@ -132,6 +132,10 @@ class Expr:
         assert not isinstance(res, TypeSet)
         return res
     
+    def Lambda(self, lmb):
+        returns = self.value_to_type(lmb.body) 
+        return self.create_func(lmb.args, returns, 'lambda')
+    
     typetofunc_single = {
                   ast.NameConstant : NameConstant,
                   ast.Num : Num,
@@ -140,7 +144,8 @@ class Expr:
                   ast.Dict : Dict,
                   ast.Tuple : Tuple,
                   ast.List : List,
-                  ast.ListComp : ListComp
+                  ast.ListComp : ListComp,
+                  ast.Lambda : Lambda,
                   }
     typetofunc_multi = {
                   ast.Name : Name,
@@ -150,6 +155,11 @@ class Expr:
     
     def getseq(self, expr):
         return TypeSet({v for v in self.value_to_type(expr.iter) if augisinstance(v, TSeq)})
+    
+    def create_func(self, args, returns, t):
+        args.defaults = [self.value_to_type(i) for i in args.defaults]
+        args.kw_defaults = [self.value_to_type(i) for i in args.kw_defaults]
+        return TFunc(args, returns, t)
     
 class Module:
     def __init__(self):
@@ -170,16 +180,14 @@ class Module:
                     self.sym.update(name.id, objset)
 
     def Func(self, func):
-        args = func.args
-        args.defaults = [self.expr.value_to_type(i) for i in args.defaults]
-        args.kw_defaults = [self.expr.value_to_type(i) for i in args.kw_defaults]
         #TODO : add type variables
         #TODO : support self-references through symtable
         self.sym.push()
         returns = self.run(func.body)
         self.sym.pop()
-        res = TFunc(func, returns)
+        res = self.expr.create_func(func.args, returns, 'func')
         return func.name, res
+    
     
     def Class(self, cls):
         assert isinstance(cls, ast.ClassDef)
@@ -253,12 +261,12 @@ def readfile(filename, module = None):
 
 if __name__=='__main__':
     m = Module()
-    m.run(readfile('database/functions.py'))
-    m.run(readfile('database/Object.py'))
+    #m.run(readfile('database/functions.py'))
+    #m.run(readfile('database/Object.py'))
     m.run(readfile('test/parsed.py'))
     
     for i in m.sym.vars:
         for k,v in i.items():
-            print('{0} => {1}'.format(k,v))
+            print('{0} : {1}'.format(k,v))
     #print(*['{0} : {1}'.format(k,v) for k,v in m.sym.vars.items()], sep='\n')
     

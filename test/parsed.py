@@ -8,6 +8,16 @@ def foo(x, y=5, *g, t=17, **P):
 x=foo(2)
 
 x=foo(5, x=6)
+
+bar = lambda x : 5
+
+def poo(x, y=2):
+    def bla():
+        return 5
+    z=bla()
+    return z
+
+
 '''
 vx=0
 vf=0.0
