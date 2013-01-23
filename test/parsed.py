@@ -35,10 +35,16 @@ return 7
 b1, b2, b3 = 0, 0.0, ''
 while True:
     b1, b2, b3 = b3, b1, b2
-'''
 
+def foo(self):
+    return 4
+'''
 
 class A:
     x=5
     def foo(self):
         return 4
+
+#r=foo(2)
+z=A.x
+t=A.foo(1)

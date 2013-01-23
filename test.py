@@ -9,8 +9,8 @@ a='''class A:
     def foo(self):
         pass
     '''
-p = run(a)
-print(dump(p))
+
+print(dump(parse('A.foo()')))
 '''
 Module(body=
 [ClassDef(name='A', bases=[], keywords=[], starargs=None, kwargs=None,

@@ -175,10 +175,17 @@ class TClass(TObject):
         self.namespace.update(dic)
     
     def __repr__(self):
-        attrepr = repr({i:j for i,j in self.namespace.items() if i != self.name})
-        return 'Class: {0}[{1}]'.format(self.name, attrepr) 
+        return 'Class: {0}'.format(self.name)
     
-
+    def get_type_attr(self, name):
+        return self.namespace.get(name) 
+    
+    def has_type_attr(self, name):
+        return name in self.namespace
+    
+    def call(self, args):
+        return st(self)
+    
 BOOL = TObject(bool)
 STR = TStr(str)
 BYTES = TStr(bytes)

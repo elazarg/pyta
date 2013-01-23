@@ -38,6 +38,7 @@ class TypeSet:
         return TypeSet(set.union(self.types, other.types)) 
     
     def to_invariant(self):
+        assert not isinstance(self.types, TypeSet)
         if Any in self.types:
             self.types = {Any}
     

@@ -5,7 +5,7 @@
 #def object(): TObject(object),
 #def range(): TIter(INT),
 #def slice(): slice,
-#def iter():\nTIter(Bottom),
+#def iter(): TIter(Bottom),
 
 def all(iterable):
     return False

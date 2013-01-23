@@ -13,14 +13,8 @@ class Globals:
 
 class Expr:
     def __init__(self):
-        pass
+        self.sym = Globals.sym
     
-    def lookup(self, name):
-        res = Globals.sym[name]
-        if len(res) > 0:
-            return res
-        return Empty
-     
     def Num(self, value):
         if isinstance(value.n, int):
             return INT
@@ -45,7 +39,7 @@ class Expr:
         return TList([self.value_to_type(i) for i in value.elts])
 
     def Name(self, value):
-        res = self.lookup(value.id)
+        res = self.sym[value.id]
         assert isinstance(res, TypeSet)
         if len(res)==0:
             return Empty
@@ -55,38 +49,38 @@ class Expr:
         c = {None : NONE, False : BOOL, True : BOOL}
         return c[value.value]
     
-    def get_attr_types(self, attr, this):
-        return {i.dict[attr] for i in self.value_to_type(this) if attr in i.dict}
+    def get_attr_types(self, expr):
+        return TypeSet.union_all({c.get_type_attr(expr.attr)
+                 for c in self.value_to_type(expr.value)
+                  if c.has_type_attr(expr.attr)})
     
     def Attribute(self, value):
-        res = self.get_attr_types(value.attr, value.value)
+        res = self.get_attr_types(value)
         if len(res)==0:
-            return Empty
-        return TypeSet(res)
+            return st(Empty)
+        return res
 
     def Call(self, value):
         args = [self.value_to_type(i) for i in value.args]
         func = value.func
         if isinstance(func, ast.Name):
-            allfuncs = [foo for foo in self.lookup(func.id)]
-            res = TypeSet.union_all([foo.call(args) for foo in allfuncs
+            res = TypeSet.union_all([foo.call(args) for foo in self.sym[func.id]
                                       if augisinstance(foo, TFunc) and foo.ismatch(args)])
         elif isinstance(func, ast.Attribute):
-            acc = self.get_attr_types(func.attr, func.value)  
-            res = TypeSet.union_all([foo(args) for foo in acc])
+            acc = self.get_attr_types(func)
+            res = TypeSet.union_all([foo.call(args) for foo in acc])
         assert isinstance(res, TypeSet)
         return res
     
     def value_to_type(self, value):
-        assert isinstance(value, (ast.Num, ast.Str, ast.Dict, ast.Tuple, ast.List, ast.ListComp,
-                                  ast.Name, ast.Call, ast.Attribute, ast.Bytes, ast.NameConstant))   
+        assert isinstance(value, ast.expr)   
         v_type = type(value) 
         if v_type in Expr.typetofunc_single:
             res = st(Expr.typetofunc_single[v_type](self, value))
         elif v_type in Expr.typetofunc_multi:
             res = Expr.typetofunc_multi[v_type](self, value)
         else:
-            print(value)
+            print(value, 'of type', type(value))
             res = st(Any)
         return res
     
@@ -128,14 +122,11 @@ class Module:
         self.sym = Globals.sym 
         self.expr = Expr()
 
-    def import_module(self, module):
-        self.sym = module.sym
-        
-    def do_assign(self, ass):
+    def Assign(self, ass):
         val = self.expr.value_to_type(ass.value)
         for target in ass.targets:
             if isinstance(target, ast.Name):
-                self.sym.update(target.id, val)
+                self.sym.update(target.id, val) 
             elif isinstance(target, ast.Tuple):
                 size = len(target.elts)
                 target_matrix = [v.split_to(size) for v in val if augisinstance(v, TSeq) and v.can_split_to(size)]
@@ -144,7 +135,7 @@ class Module:
                 for name, objset in zip(target.elts, target_tuple):
                     self.sym.update(name.id, objset)
 
-    def do_func(self, func):
+    def Func(self, func):
         args = func.args
         defaults = [self.expr.value_to_type(i) for i in args.defaults]
         tup = (args.args, args.vararg, args.varargannotation, args.kwonlyargs, args.kwarg, args.kwargannotation, defaults, args.kw_defaults)
@@ -156,7 +147,7 @@ class Module:
         res = TFunc(func.name, tup, returns)
         return func.name, res
     
-    def do_class(self, cls):
+    def Class(self, cls):
         assert isinstance(cls, ast.ClassDef)
         #TODO : support self-references through symtable
         #assume for now that methods only calls previous ones
@@ -164,9 +155,9 @@ class Module:
         cur = {cls.name : st(c)}
         self.sym.push(cur)
         m.run(cls.body, False)
-        c.update_namespace(self.sym.pop())
+        temp = self.sym.pop()
+        c.update_namespace(temp)
         return cls.name, c
-    
         
     def do_if(self, stat):
         return self.run(stat.body)
@@ -183,7 +174,6 @@ class Module:
         val = self.expr.getseq(stat)
         if len(val)==0:
             return Empty
-        
         for i in val:
             self.sym.update(stat.target.id, i.typeset())
         return self.do_while(stat)
@@ -203,13 +193,13 @@ class Module:
         returns = TypeSet({})
         for stat in body:
             if isinstance(stat, ast.FunctionDef):
-                fname, fobj = self.do_func(stat)
+                fname, fobj = self.Func(stat)
                 self.sym.update_func(fname, fobj)
             elif isinstance(stat, ast.ClassDef):
-                cname, cobj = self.do_class(stat)
+                cname, cobj = self.Class(stat)
                 self.sym.update_func(cname, cobj)
             elif isinstance(stat, ast.Assign):
-                self.do_assign(stat)
+                self.Assign(stat)
             elif type(stat) in Module.returnable:
                 ret = Module.returnable[type(stat)](self, stat)
                 returns.update(ret)
@@ -220,8 +210,6 @@ class Module:
                 pass
             else:
                 print('unknown:', stat, stat.lineno, stat.value.s)
-        if len(returns) > 0 and len(self.sym) == 1:
-            print('top level return error')
         if len(returns) == 0 and len(self.sym) != 1 and can_return:
             returns = st(NONE)            
         assert isinstance(returns, TypeSet)
@@ -232,8 +220,12 @@ def readfile(filename, module = None):
 
 if __name__=='__main__':
     m = Module()
-    #m.run(readfile('database/functions.py'))
+    m.run(readfile('database/functions.py'))
+    m.run(readfile('database/Object.py'))
     m.run(readfile('test/parsed.py'))
-    print(m.sym)
+    
+    for i in m.sym.vars:
+        for k,v in i.items():
+            print('{0} => {1}'.format(k,v))
     #print(*['{0} : {1}'.format(k,v) for k,v in m.sym.vars.items()], sep='\n')
     
