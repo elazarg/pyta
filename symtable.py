@@ -13,6 +13,7 @@ class SymTable:
 
     def push(self, top={}):
         assert isinstance(top, dict)
+        assert all(isinstance(v,TypeSet) for v in top.values())        
         self.vars.append(top)
 
     def pop(self):
@@ -28,14 +29,12 @@ class SymTable:
         return d
     
     def update(self, var_id, valset):
+        assert isinstance(valset,TypeSet)
         ts = self.get_var(var_id)
         if len(ts)==0:
             ts = self.vars[-1][var_id] = TypeSet({})
         ts.update(valset)
 
-    def update_func(self, fname, func):
-        return self.update(fname, st(func))
-        
     def merge(self, other):
         assert isinstance(other, SymTable)
         for d in other.vars:

@@ -233,27 +233,6 @@ class TFunc(TObject):
     def call(self, actual_args):
         assert self.ismatch(actual_args)
         return self.returns
-
-class TClass(TObject):
-    def __init__(self, name, bases, keywords, starargs, kwargs):
-        self.name, self.bases = name, bases
-        self.keywords, self.starargs, self.kwargs = keywords, starargs, kwargs
-        self.namespace = {}
-        
-    def update_namespace(self, dic):
-        self.namespace.update(dic)
-    
-    def __repr__(self):
-        return 'Class: {0}'.format(self.name)
-    
-    def get_type_attr(self, name):
-        return self.namespace.get(name) 
-    
-    def has_type_attr(self, name):
-        return name in self.namespace
-    
-    def call(self, args):
-        return st(self)
     
 BOOL = TObject(bool)
 STR = TStr(str)

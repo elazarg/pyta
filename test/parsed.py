@@ -1,4 +1,3 @@
-'''
 
 def foo(x, y=5, *g, t, q=98, **P):
     def bla():
@@ -33,6 +32,7 @@ M=N=3
 a,b=0,1
 d={'hello': 1, 'world' : 'f', 'wa' : 1.3 }
 for k in (1,2):    print(k)
+'''
 def foo():
     def bla():
         return 5
