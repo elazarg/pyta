@@ -33,12 +33,13 @@ def readfile(filename, module = None):
     
 def main():
     g = visitor.Visitor()
-    g.visit(readfile('database/functions.py'))
     g.visit(readfile('database/Object.py'))
+    g.visit(readfile('database/int.py'))
+    g.print()
+    g.visit(readfile('database/functions.py'))
     v = visitor.Visitor(g)
     r = readfile('test/parsed.py')
     v.visit(r)
-    #g.print()
     v.print()
             
 

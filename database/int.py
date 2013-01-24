@@ -148,9 +148,9 @@ class int:
         return 0
     def __rfloordiv__(self, y):
         return 0
-    def __pow__(self, y, z=-1):
+    def __pow__(self, y, z=0):
         return 0
-    def __rpow__(self, x, z=-1):
+    def __rpow__(self, x, z=0):
         return 0
 #x[y:z] <==> x[y.__index__():z.__index__()] ??
 
