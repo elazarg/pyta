@@ -28,10 +28,6 @@ class Visitor(ast.NodeVisitor):
     def __init__(self, parent = None):
         self.sym = SymTable()
         self.parent = parent
-        self.returns = None
-        
-    def get_returns(self):
-        return self.returns
     
     def lookup(self, name):
         res = self.sym.get_var(name, None)
@@ -59,9 +55,12 @@ class Visitor(ast.NodeVisitor):
                     self.bind_weak(name.id, typeset2)
 
     def visit_all_childs(self, node):
+        returns = TypeSet({})
         for n in ast.iter_child_nodes(node):
-            self.visit(n)
-        return self.get_returns()
+            res = self.visit(n)
+            if isinstance(n, ast.stmt) and res != None:
+                returns.update(res)
+        return returns
 
     def visit_FunctionDef(self, func):
         #TODO : add type variables
