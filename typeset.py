@@ -3,14 +3,32 @@ def st(t):
     return TypeSet({t})
 
 class TObject:
-    def __init__(self, t=object):
+    def __init__(self, s=None, t=None):
+        if t == None and s != None:
+            t = type(s)
         self.type = t
+        self.super = s
         self.dict = {}
 
     def __repr__(self):
         return repr(self.type).split(sep="'")[1]
 
+    def has_type_attr(self, attr):
+        res = self.get_type_attr(attr)
+        return res != None
+        
+    def get_type_attr(self, attr):
+        res = self.dict.get(attr)
+        if res == None:
+            res = self.type.get_type_attr(attr)
+            res = TypeSet({a.with_bind(self) for a in res})
+        return res
 
+    def ismatch(self, actual_args):
+        return False
+
+
+    
 class AnyClass(TObject):
     def __init__(self):
         super(type)

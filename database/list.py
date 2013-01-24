@@ -90,4 +90,6 @@ class list:
         return self
     def __imul__(self, y):
         return self
+    
+    __hash__ = None
         

@@ -61,6 +61,15 @@ class Visitor(ast.NodeVisitor):
             if isinstance(n, ast.stmt) and res != None:
                 returns.update(res)
         return returns
+    
+    def get_attr_types(self, value, name):
+        return TypeSet.union_all({
+                c.get_type_attr(name)
+                for c in self.visit(value)
+                if c.has_type_attr(name)})
+    
+    def visit_Attribute(self, attr):
+        return self.get_attr_types(attr.value, attr.attr)
 
     def visit_FunctionDef(self, func):
         #TODO : add type variables
@@ -83,6 +92,19 @@ class Visitor(ast.NodeVisitor):
         c.update_namespace(temp)
         self.bind_weak(*cur)
         
+    def visit_Call(self, value):
+        value.args = [self.visit(i) for i in value.args]
+        for keyword in value.keywords:
+            keyword.value = self.visit(keyword.value)
+        func = value.func
+        if isinstance(func, ast.Name):
+            res = TypeSet.union_all([foo.call(value) for foo in self.visit(func)
+                                      if augisinstance(foo, (TFunc, TClass)) and foo.ismatch(value)])
+        elif isinstance(func, ast.Attribute):
+            res = TypeSet.union_all([foo.call(value) for foo in self.get_attr_types(func.value, func.attr)])
+        assert isinstance(res, TypeSet)
+        return res
+    
     def visit_If(self, stat):
         return self.visit_all_childs(stat)
     
@@ -92,7 +114,6 @@ class Visitor(ast.NodeVisitor):
         ret = self.visit_all_childs(node)
         new_sym = repr(self.sym)
         return ret, old_sym == new_sym
-    
     def visit_While(self, stat):
         while True:
             ret, done = self.go_round(stat)
@@ -165,35 +186,18 @@ class Visitor(ast.NodeVisitor):
         return res
     
     @singletype
-    def visit_NameConstant(self, value):
+    def visit_NameConstant(self, cons):
         c = {None : NONE, False : BOOL, True : BOOL}
-        return c[value.value]
-    
-    def get_attr_types(self, expr):
-        return TypeSet.union_all({
-                c.get_type_attr(expr.attr)
-                for c in self.visit(expr.value)
-                if c.has_type_attr(expr.attr)})
-    
-    def visit_Attribute(self, value):
-        res = self.get_attr_types(value)
-        if len(res)==0:
-            return st(Empty)
-        return res
+        return c[cons.value]
 
-    def visit_Call(self, value):
-        value.args = [self.visit(i) for i in value.args]
-        for keyword in value.keywords:
-            keyword.value = self.visit(keyword.value)
-        func = value.func
-        if isinstance(func, ast.Name):
-            res = TypeSet.union_all([foo.call(value) for foo in self.visit(func)
-                                      if augisinstance(foo, TFunc) and foo.ismatch(value)])
-        elif isinstance(func, ast.Attribute):
-            acc = self.get_attr_types(func)
-            res = TypeSet.union_all([foo.call(value) for foo in acc])
-        assert isinstance(res, TypeSet)
+    
+    def visit_Subscript(self, sub):
+        args = ast.arguments([ast.Num(1)], [], None, [], None, None, [], [])
+        res = TypeSet.union_all([foo.call(args)
+                                 for foo in self.get_attr_types(sub.value, '__getitem__')
+                                 if foo.ismatch(args)])
         return res
+    
 
     @singletype
     def visit_ListComp(self, value):

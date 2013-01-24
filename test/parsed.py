@@ -1,4 +1,15 @@
+'''
+'''
+class A:
+    def __getitem__(self, i):
+        return 0
 
+
+x=A()
+y=A.__getitem__(x, 2)
+z=x.__getitem__(2)
+q=x[2]
+'''
 def foo(x, y=5, *g, t, q=98, **P):
     def bla():
         return 5
@@ -29,6 +40,9 @@ tx=('fd', None)
 q,t=tx
 M=N=3
 
+tx[2]
+tx[3]=2
+
 a,b=0,1
 d={'hello': 1, 'world' : 'f', 'wa' : 1.3 }
 for k in (1,2):    print(k)
@@ -47,8 +61,7 @@ for i in range(n):
 
 return 7
     
-    
-b1, b2, b3 = 0, 0.0, ''
+b1,  b2, b3 = 0, 0.0, ''
 while True:
     b1, b2, b3 = b3, b1, b2
 
@@ -64,3 +77,5 @@ class A:
 #r=foo(2)
 z=A.x
 t=A.foo(1)
+
+'''

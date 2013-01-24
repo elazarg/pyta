@@ -30,15 +30,20 @@ import visitor, ast
 def readfile(filename, module = None):
     return ast.parse(open(filename).read())
 
-    
-def main():
+  
+def prelude():  
     g = visitor.Visitor()
-    g.visit(readfile('database/Object.py'))
+    g.visit(readfile('database/object.py'))
     g.visit(readfile('database/int.py'))
+    g.visit(readfile('database/float.py'))    
     g.visit(readfile('database/list.py'))    
-    g.print()
     g.visit(readfile('database/functions.py'))
-    v = visitor.Visitor(g)
+    g.print()
+    return g
+
+def main():
+    #g = prelude()
+    v = visitor.Visitor()
     r = readfile('test/parsed.py')
     v.visit(r)
     v.print()

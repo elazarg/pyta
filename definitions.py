@@ -4,10 +4,15 @@ from symtable import SymTable
 from types import TObject, NONE
        
 class TArguments():
-    def __init__(self, arg):
+    def __init__(self, arg, b = None):         
         rearg = [i.arg for i in arg.args]
         size = len(arg.defaults)
         self.pos = rearg[:-size] if size > 0 else rearg
+        
+        self.bind = b
+        if b != None:
+            del self.pos[0]
+        
         self.defs = list(zip(rearg[-size:] , arg.defaults))        
         
         self.vararg = arg.vararg
@@ -18,6 +23,9 @@ class TArguments():
         self.kw_defaults = arg.kw_defaults
         
         self.names = set(rearg + [self.vararg] + self.kwonlyargs + [self.kwarg])  
+        
+    def with_bind(self, t):
+        return TArguments(self.arg, t)
         
     def ismatch(self, actual):
         bind = {}
@@ -60,14 +68,16 @@ class TArguments():
         kws = ', '.join(('{0}={1}'.format(k, v) if v else k) for k, v in zip(self.kwonlyargs, self.kw_defaults))
         kwargs = '**' + self.kwarg if self.kwarg else None
         
-        return '({0})'.format( ', '.join(i for i in [pos, defs, varargs, kws, kwargs] if i) )
+        return '({0})'.format( ', '.join(i for i in [pos, defs, varargs, kws, kwargs, self.bind] if i) )
 
 # TODO argslist as a class
 class TFunc(TObject):
-    def __init__(self, args, returns, t):
+    def __init__(self, args, returns, t, bind = None):
         assert isinstance(returns, (TypeSet, type(None)))
+        self.orig_args = args
+        
         self.t = t
-        self.args = TArguments(args)
+        self.args = TArguments(args, bind)
         if t == None:
             self.returns = st(NONE)
         else:
@@ -75,6 +85,9 @@ class TFunc(TObject):
     
     def __repr__(self):
         return self.t + ' {0} -> {1}'.format(self.args, self.returns)
+
+    def with_bind(self, bind):
+        return TFunc(self.orig_args, self.returns, self.t, bind)
         
     def ismatch(self, actual_args):
         res = self.args.ismatch(actual_args)
@@ -84,7 +97,8 @@ class TFunc(TObject):
         return res
         
     def call(self, actual_args):
-        assert self.ismatch(actual_args)
+        if not self.ismatch(actual_args):
+            return TypeSet({})
         return self.returns
 
 
@@ -93,18 +107,26 @@ class TClass(TObject):
         self.name, self.bases = name, bases
         self.keywords, self.starargs, self.kwargs = keywords, starargs, kwargs
         self.namespace = SymTable()
+        self.type = self #should be 'TType'
         
     def update_namespace(self, sym):
         self.namespace.merge(sym)
     
     def __repr__(self):
-        return 'Class: {0}'.format(self.name)
+        return "Class: '{0}'".format(self.name)
     
     def get_type_attr(self, name):
-        return self.namespace.get_var(name) 
+        return self.namespace.get_var(name, None) 
     
-    def has_type_attr(self, name):
-        return len(self.namespace.get_var(name)) > 0 
+    def ismatch(self, args):
+        x = self.namespace.get_var('__init__', None)
+        if x == None:
+            return len(args.args)==0
+        return x.ismatch(args)
     
     def call(self, args):
-        return st(self)
+        return st(TObject(self.bases, self))
+    
+if __name__=='__main__':
+    import analyze
+    analyze.main()    
