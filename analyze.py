@@ -35,6 +35,7 @@ def main():
     g = visitor.Visitor()
     g.visit(readfile('database/Object.py'))
     g.visit(readfile('database/int.py'))
+    g.visit(readfile('database/list.py'))    
     g.print()
     g.visit(readfile('database/functions.py'))
     v = visitor.Visitor(g)

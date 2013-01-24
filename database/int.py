@@ -94,8 +94,6 @@ class int:
         return 0
     def __int__(self):
         return 0
-    def __hash__(self):
-        return 0
     def __truediv__(self, y):
         return 0.0
     def __abs__(self):
