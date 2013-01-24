@@ -193,19 +193,6 @@ class Visitor(ast.NodeVisitor):
         assert isinstance(res, TypeSet)
         return res
 
-    '''    
-    def visit(self, value):
-        assert isinstance(value, ast.expr)   
-        v_type = type(value) 
-        if v_type in Expr.typetofunc_single:
-            res = st(Expr.typetofunc_single[v_type](self, value))
-        elif v_type in Expr.typetofunc_multi:
-            res = Expr.typetofunc_multi[v_type](self, value)
-        else:
-            print(value, 'of type', type(value))
-            res = st(Any)
-        return res
-    ''' 
     @singletype
     def visit_ListComp(self, value):
         gen = value.generators[0]
@@ -241,16 +228,6 @@ class Visitor(ast.NodeVisitor):
         args.kw_defaults = [(self.visit(i) if i != None else i) for i in args.kw_defaults ]
         return TFunc(args, returns, t)
 
-def readfile(filename, module = None):
-    return ast.parse(open(filename).read())
-
-
 if __name__=='__main__':
-    v = Visitor()
-    #m.run(readfile('database/functions.py'))
-    #m.run(readfile('database/Object.py'))
-    v.visit(readfile('test/parsed.py'))
-    
-    for i in v.sym.vars:
-        for k,v in i.items():
-            print('{0} : {1}'.format(k,v))    
+    import analyze
+    analyze.main()
