@@ -189,10 +189,10 @@ class Module:
         res = self.expr.create_func(func.args, returns, 'func')
         return func.name, res
     
-    
     def Class(self, cls):
         assert isinstance(cls, ast.ClassDef)
         #assume for now that methods only calls previous ones
+        #tofix: contaminating global namespace 
         c = TClass(cls.name, cls.bases, cls.keywords, cls.starargs, cls.kwargs)
         cur = {cls.name : st(c)}
         self.sym.push(cur)

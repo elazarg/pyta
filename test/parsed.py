@@ -1,3 +1,4 @@
+'''
 
 def foo(x, y=5, *g, t, q=98, **P):
     def bla():
@@ -15,7 +16,6 @@ def poo(x, y=2):
         return 5
     z=bla()
     return z
-
 vx=0
 vf=0.0
 vs=''
@@ -58,6 +58,8 @@ def fooga(self):
 '''
 
 '''
+'''
+x=''
 class A:
     x=5
     def foo(self):

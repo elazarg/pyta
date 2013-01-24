@@ -159,6 +159,8 @@ class TArguments():
         self.kwargannotation = arg.kwargannotation
         self.kw_defaults = arg.kw_defaults
         
+        self.names = set(rearg + [self.vararg] + self.kwonlyargs + [self.kwarg])  
+        
     '''    
     >>> ast.dump(ast.parse('foo(z,y=6,*[1])').body[0].value)
     "Call(    func=Name(id='foo', ctx=Load()),
@@ -189,11 +191,16 @@ class TArguments():
         if len(leftover_keys) > 0:
             # keyword-only parameter left
             print('keyword-only parameter left:', leftover_keys)
-            return False 
+            return False
+        spare_keywords = set(bind.keys()) - self.names
+        if self.kwarg != None and len(spare_keywords) > 0:
+            # keyword-only parameter left
+            print('too many keyword arguments', spare_keywords)
+            return False            
         return True
 
     def __repr__(self):
-        pos = repr(self.pos)[1:-1]
+        pos = ', '.join(self.pos)
         defs = ', '.join('{0}={1}'.format(k,v) for k,v in self.defs)
         varargs = None
         if self.vararg:
