@@ -9,6 +9,8 @@ x=A()
 y=A.__getitem__(x, 2)
 z=x.__getitem__(2)
 q=x[2]
+
+a = 1+2
 '''
 def foo(x, y=5, *g, t, q=98, **P):
     def bla():

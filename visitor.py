@@ -105,9 +105,23 @@ class Visitor(ast.NodeVisitor):
         assert isinstance(res, TypeSet)
         return res
     
+    def create_attribute_node(self, left, attr, params):
+        val = ast.Call(ast.Attribute(left, attr, ast.Load()),
+                         params, [], [], [])   
+        ast.dump(val)
+        return val
+        
     def visit_Subscript(self, sub):
-        value = ast.Call(ast.Attribute(sub.value, '__getitem__', ast.Load),
-                         [sub.slice.value], [], [], [])
+        value = self.create_attribute_node(sub.value, '__getitem__', 
+                                           [sub.slice.value])
+        return self.visit(value)
+    
+    def visit_BinOp(self, binop):
+        left = self.visit(binop.left)
+        right= self.visit(binop.right)
+        name = '__{0}__'.format(ast.dump(binop.op).lower()[:-2])
+        value = self.create_attribute_node(left, name, [right])
+        print(ast.dump(value))
         return self.visit(value)
     
     def visit_If(self, stat):
