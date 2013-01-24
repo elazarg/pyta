@@ -105,6 +105,11 @@ class Visitor(ast.NodeVisitor):
         assert isinstance(res, TypeSet)
         return res
     
+    def visit_Subscript(self, sub):
+        value = ast.Call(ast.Attribute(sub.value, '__getitem__', ast.Load),
+                         [sub.slice.value], [], [], [])
+        return self.visit(value)
+    
     def visit_If(self, stat):
         return self.visit_all_childs(stat)
     
@@ -114,6 +119,7 @@ class Visitor(ast.NodeVisitor):
         ret = self.visit_all_childs(node)
         new_sym = repr(self.sym)
         return ret, old_sym == new_sym
+    
     def visit_While(self, stat):
         while True:
             ret, done = self.go_round(stat)
@@ -190,13 +196,6 @@ class Visitor(ast.NodeVisitor):
         c = {None : NONE, False : BOOL, True : BOOL}
         return c[cons.value]
 
-    
-    def visit_Subscript(self, sub):
-        args = ast.arguments([ast.Num(1)], [], None, [], None, None, [], [])
-        res = TypeSet.union_all([foo.call(args)
-                                 for foo in self.get_attr_types(sub.value, '__getitem__')
-                                 if foo.ismatch(args)])
-        return res
     
 
     @singletype
