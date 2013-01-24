@@ -2,7 +2,16 @@
 def st(t):
     return TypeSet({t})
 
-class AnyClass:
+class TObject:
+    def __init__(self, t=object):
+        self.type = t
+        self.dict = {}
+
+    def __repr__(self):
+        return repr(self.type).split(sep="'")[1]
+
+
+class AnyClass(TObject):
     def __init__(self):
         super(type)
         
@@ -39,6 +48,9 @@ class TypeSet:
     
     def to_invariant(self):
         assert not isinstance(self.types, TypeSet)
+        if not all(issubclass(type(t), TObject) for t in self.types):
+            print(self.types)
+            assert False
         if Any in self.types:
             self.types = {Any}
     

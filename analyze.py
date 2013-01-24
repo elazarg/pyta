@@ -3,12 +3,11 @@
 '''
 TODO:
 
-* better ListComp (more specific)
 * add binop support
-* type variables
+* type variables (lazy/memoizable?)
 * augmented assignment
-* better signature match
 * single-valued-ints
+* better ListComp (more specific)
 * Exceptions
 
 * better type-error warnings
@@ -18,13 +17,8 @@ TODO:
 * attributes
 * metaclasses
 
-* less wild imports
-* use visitors or something
-* 
-
 * basic control flow
 * full CFG
-*
 
 * porting to c++ ?
 * porting to datalog ?!
@@ -36,16 +30,16 @@ import visitor, ast
 def readfile(filename, module = None):
     return ast.parse(open(filename).read())
 
+    
 def main():
-    v = visitor.Visitor()
-    #m.run(readfile('database/functions.py'))
-    #m.run(readfile('database/Object.py'))
+    g = visitor.Visitor()
+    g.visit(readfile('database/functions.py'))
+    g.visit(readfile('database/Object.py'))
+    v = visitor.Visitor(g)
     r = readfile('test/parsed.py')
     v.visit(r)
-    
-    for i in v.sym.vars:
-        for k,v in i.items():
-            print('{0} : {1}'.format(k,v))
+    #g.print()
+    v.print()
             
 
 if __name__=='__main__':

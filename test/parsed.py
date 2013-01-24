@@ -32,8 +32,7 @@ M=N=3
 a,b=0,1
 d={'hello': 1, 'world' : 'f', 'wa' : 1.3 }
 for k in (1,2):    print(k)
-'''
-def foo():
+def boo():
     def bla():
         return 5
     z=bla()
@@ -55,10 +54,7 @@ while True:
 
 def fooga(self):
     return 4
-'''
 
-'''
-'''
 x=''
 class A:
     x=5

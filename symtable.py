@@ -9,46 +9,27 @@ from types import NONE, BOOL
 class SymTable:
     constants = {'None' : st(NONE), 'False' : st(BOOL), 'True' : st(BOOL)}
     def __init__(self):
-        self.vars =  [{}]
-
-    def push(self, top={}):
-        assert isinstance(top, dict)
-        assert all(isinstance(v,TypeSet) for v in top.values())        
-        self.vars.append(top)
-
-    def pop(self):
-        return self.vars.pop()
+        self.vars =  {}
     
-    def depth(self):
-        return len(self.vars)
-    
-    def popmerge(self):
-        d = self.pop()
-        for k,v in d.items():
-            self.update(k, v)
-        return d
-    
-    def update(self, var_id, valset):
-        assert isinstance(valset,TypeSet)
-        ts = self.get_var(var_id)
-        if len(ts)==0:
-            ts = self.vars[-1][var_id] = TypeSet({})
-        ts.update(valset)
+    def bind(self, var_id, typeset):
+        assert isinstance(typeset, TypeSet)
+        assert isinstance(var_id, str)
+        
+        ts = self.get_var(var_id, TypeSet({}))
+        if not ts:
+            ts = self.vars[var_id] = TypeSet({})
+        ts.update(typeset)
 
     def merge(self, other):
         assert isinstance(other, SymTable)
-        for d in other.vars:
-            for k,v in d.items():
-                self.update(k, v)
+        for k,v in other.vars.items():
+            self.bind(k, v)
         
-    def get_var(self, name):
+    def get_var(self, name, default = 0):
         #prior 3.4: 
         #consts = SymTable.constants.get(name, TypeSet({}))
         #return self.vars.get(name, TypeSet({})).union(consts)
-        for d in self.vars:
-            if name in d:
-                return d[name]
-        return TypeSet({}) 
+        return self.vars.get(name, default)
 
     def __getitem__(self, name):
         return self.get_var(name)
@@ -57,10 +38,21 @@ class SymTable:
         return '{0}'.format(repr(self.vars))
     
     def __eq__(self, other):
-        return isinstance(other, SymTable) and self.vars == other.vars
+        return isinstance(other, SymTable) and set(self.vars.items) == set(other.vars.items())
     
     def __len__(self):
-        return sum(len(d) for d in self.vars)
+        return len(self.vars)
     
     def includes(self, other):
-        return isinstance(other, SymTable) and self.vars == other.vars
+        if not isinstance(other, SymTable):
+            return False
+        if not set(self.keys()).issuperset(set(other.keys())):
+            return False  
+        for s in set(self.vars.keys()).intersection(set(other.vars.keys())):
+            if not self.vars[s].contains(other.vars[s]):
+                return False
+        return True
+    
+    def print(self):
+        for k,v in self.vars.items():
+            print('{0} : {1}'.format(k,v))

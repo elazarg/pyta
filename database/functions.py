@@ -85,7 +85,7 @@ def oct(num):
 def ord(st):
     return 0
 
-def print(x):
+def print(*x, sep=' ', end='\n'):
     return None
 
 def repr(obj):
