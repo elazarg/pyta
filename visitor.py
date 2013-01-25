@@ -1,8 +1,8 @@
 #!/sbin/python3
 import ast
-from typeset import TypeSet, Any, st
+from typeset import TypeSet, Any, st, NONE, BOOL
 from types import TObject, TTuple, TList, TSeq, TDict
-from types import NONE, BOOL, INT, STR, BYTES, FLOAT, COMPLEX
+from types import INT, STR, BYTES, FLOAT, COMPLEX
 from definitions import TArguments, TFunc, TClass
 from symtable import SymTable
 
@@ -19,15 +19,15 @@ def singletype(method):
         return st(t)
     return wr
 
+def visit_result(method):
+    def wrapped(self, args):
+        #ast.dump(args)
+        res = method(self, args)
+        assert issubclass(type(res), ast.AST)
+        return self.visit(res)
+    return wrapped
+
 class Visitor(ast.NodeVisitor):
-    '''
-    '''
-    def expression(m):
-        def wrapped(self, args):
-            #ast.dump(args)
-            res = m(self, args)
-            return self.visit(res)
-        return wrapped
     
     def generic_visit(self, node):
         print(ast.dump(node))
@@ -37,10 +37,12 @@ class Visitor(ast.NodeVisitor):
     def __init__(self, parent = None):
         self.sym = SymTable()
         self.parent = parent
+        
         if parent == None:
+            self.bind_weak('NoneType', st(NONE))
             d = {'int' : INT, 'bool' : BOOL, 'float' : FLOAT, 'complex' : COMPLEX}
             for k, v in d.items(): 
-                self.bind_weak(k, TypeSet({}))
+                self.bind_weak(k, st(v))
     
     def lookup(self, name):
         res = self.sym.get_var(name, None)
@@ -53,6 +55,11 @@ class Visitor(ast.NodeVisitor):
     
     def print(self):
         self.sym.print()
+    
+    @visit_result
+    def visit_AugAssign(self, ass):
+        from ast_transform import augassign_to_method
+        return augassign_to_method(ass)
         
     def visit_Assign(self, ass):
         typeset = self.visit(ass.value)
@@ -76,10 +83,13 @@ class Visitor(ast.NodeVisitor):
         return returns
     
     def get_attr_types(self, value, name):
+        seq = self.visit(value)
+        #print(seq)
+        seq1 = [c for c in seq if c.has_type_attr(name)]
+        #print(seq1)
         return TypeSet.union_all({
                 c.get_type_attr(name)
-                for c in self.visit(value)
-                if c.has_type_attr(name)})
+                for c in seq1})
     
     def visit_Attribute(self, attr):
         return self.get_attr_types(attr.value, attr.attr)
@@ -89,6 +99,8 @@ class Visitor(ast.NodeVisitor):
         #TODO : support self-references through symtable
         v = Visitor(self)
         returns = v.visit_run(func)
+        if len(returns)==0:
+            returns = self.lookup('NoneType')
         res = self.create_func(func.args, returns, 'func')
         self.bind_weak(func.name, st(res))
     
@@ -136,12 +148,12 @@ class Visitor(ast.NodeVisitor):
         res = r1.union(r2)
         return res
     
-    @expression
+    @visit_result
     def visit_Subscript(self, sub):
         from ast_transform import transform_subscript
         return transform_subscript(sub)
 
-    @expression
+    @visit_result
     def visit_BinOp(self, binop):
         from ast_transform import binop_to_method
         return binop_to_method(binop)
@@ -172,7 +184,12 @@ class Visitor(ast.NodeVisitor):
         return self.visit_While(stat)
     
     def visit_Return(self, ret):
-        return self.visit(ret.value)
+        if ret.value == None:
+            res = self.lookup('NoneType')
+        else:
+            res = self.visit(ret.value)
+            #assert len(res)>0
+        return res
 
     def visit_Pass(self, ps):
         pass
@@ -184,8 +201,8 @@ class Visitor(ast.NodeVisitor):
             if ret != None:
                 return_values.update(ret)
         assert isinstance(return_values, TypeSet)
-        if len(return_values) > 0:
-            return return_values
+        #if len(return_values) > 0:
+        return return_values
 
     def visit_Module(self, node):
         return self.visit_run(node)
@@ -197,7 +214,11 @@ class Visitor(ast.NodeVisitor):
         if name == None:
             print('unknown Num:', ast.dump(value))
             return None
-        return TypeSet({i.new_instance() for i in self.lookup(name)})
+        res = TypeSet({i.new_instance() for i in self.lookup(name)})
+        assert len(res) > 0
+        for i in res:
+            i.value = value.n
+        return res
     
     @singletype
     def visit_Str(self, value):
@@ -253,8 +274,7 @@ class Visitor(ast.NodeVisitor):
         return self.create_func(lmb.args, returns, 'lambda')
 
     def visit_Expr(self, expr):
-        for n in ast.iter_child_nodes(expr):
-            self.visit(n)
+        self.visit(expr.value)
     
     def visit_arguments(self, args):
         return TArguments(args)
@@ -265,7 +285,7 @@ class Visitor(ast.NodeVisitor):
     def create_func(self, args, returns, t):
         args.defaults = [self.visit(i) for i in args.defaults]
         args.kw_defaults = [(self.visit(i) if i != None else i) for i in args.kw_defaults ]
-        return TFunc(args, returns, t)
+        return TFunc(args, lambda *x : returns, t)
 
 
 if __name__=='__main__':

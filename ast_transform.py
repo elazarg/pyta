@@ -24,30 +24,62 @@ def op_to_methodname(op):
            LShift : 'lshift', Sub : 'sub', UAdd : 'uadd', USub : 'usub'}
     others = [NotIn, NotEq, Compare, DictComp, SetComp,  UnaryOp] 
     return ops[op]
-            
+
+def getformat(opname):
+    return lambda pref : '__{0}{1}__'.format(pref, opname)
+
+def make_check_attr(left, attrname):
+    return create_call(func=Name('hasattr', Load()),  args=[left, Str(attrname)])
+
 def binop_to_method(op):
+    assert isinstance(op, BinOp)
     opname = op_to_methodname(type(op.op))
-    attr = lambda pref='':  '__{0}{1}__'.format(pref, opname)
-    res = create_attr(op.left, attr(), op.right)
-    rres = create_attr(op.right, attr('r'), op.left)
+    form = getformat(opname)
+    attrname = form('')
     
-    call = create_call(func=Name('hasattr', Load()),
-                       args=[op.left, Str(opname)])
-    x = IfExp(test=call, body = res, orelse = rres)
-    #print(dump(x))
-    return x
+    attr = create_attr(op.left, attrname, op.right)
+    rattr = create_attr(op.right, form('r'), op.left)
+    
+    call = make_check_attr(op.left, attrname)
+    
+    return IfExp(test=call, body=attr, orelse=rattr)
+
+def augassign_to_method(op):
+    assert isinstance(op, AugAssign)
+    opname = op_to_methodname(type(op.op))
+    attrname = getformat(opname)('i')
+    
+    attr = create_attr(op.target, attrname, op.value)
+    call = make_check_attr(op.target, attrname)
+    binop = BinOp(op.target, op.op, op.value)
+    ass = Assign(target=[op.target],value=binop)
+    
+    return If(test=call, body=[attr], orelse=[ass])
 
 ['AST', 'Add', 'And', 'Assert', 'Assign', 'Attribute', 'AugAssign', 'AugLoad', 'AugStore', 'BinOp', 'BitAnd', 'BitOr', 'BitXor', 'BoolOp', 'Break', 'Bytes', 'Call', 'ClassDef', 'Compare', 'Continue', 'Del', 'Delete', 'Dict', 'DictComp', 'Div', 'Ellipsis', 'Eq', 'ExceptHandler', 'Expr', 'Expression', 'ExtSlice', 'FloorDiv', 'For', 'FunctionDef', 'GeneratorExp', 'Global', 'Gt', 'GtE', 'If', 'IfExp', 'Import', 'ImportFrom', 'In', 'Index', 'Interactive', 'Invert', 'Is', 'IsNot', 'LShift', 'Lambda', 'List', 'ListComp', 'Load', 'Lt', 'LtE', 'Mod', 'Module', 'Mult', 'Name', 'NodeTransformer', 'NodeVisitor', 'Nonlocal', 'Not', 'NotEq', 'NotIn', 'Num', 'Or', 'Param', 'Pass', 'Pow', 'PyCF_ONLY_AST', 'RShift', 'Raise', 'Return', 'Set', 'SetComp', 'Slice', 'Starred', 'Store', 'Str', 'Sub', 'Subscript', 'Suite', 'TryExcept', 'TryFinally', 'Tuple', 'UAdd', 'USub', 'UnaryOp', 'While', 'With', 'Yield', '__builtins__', '__cached__', '__doc__', '__file__', '__name__', '__package__', '__version__', 'alias', 'arg', 'arguments', 'boolop', 'cmpop', 'comprehension', 'copy_location', 'dump', 'excepthandler', 'expr', 'expr_context', 'fix_missing_locations', 'get_docstring', 'increment_lineno', 'iter_child_nodes', 'iter_fields', 'keyword', 'literal_eval', 'mod', 'operator', 'parse', 'slice', 'stmt', 'unaryop', 'walk']
 
+def maketest(func):
+    def wr(text):
+        x=parse(text).body[0]
+        if isinstance(x, Expr):
+            x=x.value
+        res = func(x)
+        print(dump(res))
+    return wr
+
+def test(func, cases):
+    test = maketest(func)
+    for case in cases:
+        test(case)
+
+def test_binop():
+    test(binop_to_method, ['1+2', '1*2','x*1','x*1'])
+
+def test_augassign():
+    test(augassign_to_method, ['x+=5'])
+    
 if __name__ == '__main__':
-    binop_to_method(parse('1+2').body[0].value)
-    binop_to_method(parse('1*2').body[0].value)
-    binop_to_method(parse('1//2').body[0].value)
-    binop_to_method(parse('1/2').body[0].value)
-
-
-
-
+    test_augassign()
 
 '''
 x.__lt__(y) <==> x<y

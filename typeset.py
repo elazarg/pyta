@@ -104,4 +104,6 @@ class TypeSet:
     def __len__(self):
         return len(self.types)
  
+BOOL = TObject(TObject, bool)
+NONE = TObject(TObject, type(None))
 Empty = TypeSet({})

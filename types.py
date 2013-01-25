@@ -1,33 +1,42 @@
 from typeset import TypeSet, st, TObject
 from itertools import product
+from definitions import TFunc
 
 class TNum(TObject):
     def __init__(self, t):
         self.dict = {}
+        self.t = t
     
     def get_dict(self):
         return {i:j for i, j in list(self.dict.items()) + list(super.get_dict(self).items())}
 
     def __repr__(self):
-        return "num"     
+        return "num"
+
+    def new_instance(self):
+        return TObject(TNum, self.t)     
 
 class TInt(TNum):
     def __init__(self, t=int):
         self.dict = {}
+        self.t=t
     
     def __repr__(self):
         return "int"
 
+
 class TBool(TNum):
-    def __init__(self, t=int):
+    def __init__(self, t=bool):
         self.dict = TInt().dict
+        self.t=bool
 
     def __repr__(self):
         return "bool"
 
 class TFloat(TNum):
     def __init__(self, t=float):
-        pass
+        self.dict = TInt().dict
+        self.t=bool    
     
     def __repr__(self):
         return "float"
@@ -83,7 +92,18 @@ class TTuple(TSeq):
     def __init__(self, tvalues):
         self.types = tuple(tvalues)
         self.dict = TObject().dict
-        self.dict.update({'__getitem__' : lambda x : self.types[x] }) 
+        self.additems()
+    
+    def additems(self):
+        import ast
+        args = ast.arguments([ast.arg('x', None)], None, None, [], None, None, [], [])
+        def getitem(actual_args):
+            if not all(hasattr(x, 'value') for x in actual_args.args[0]):
+                return self.typeset()
+            values = [x.value for x in actual_args.args[0] if isinstance(x.value, int)]
+            return TypeSet(self.types[v] for v in values if v < len(self.types))
+        func = TFunc(args, getitem , 'attr')
+        self.dict.update({'__getitem__' : st(func) }) 
         
     def __len__(self):
         return len(self.types)
@@ -125,8 +145,7 @@ class TStr(TTuple):
         return st(TStr())
 
     
-BOOL = TObject(bool)
+
 STR = TStr(str)
 BYTES = TStr(bytes)
 INT, FLOAT, COMPLEX = TInt(), TFloat(), TNum(complex)
-NONE = TObject(type(None))

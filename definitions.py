@@ -1,7 +1,6 @@
 
-from typeset import TypeSet, st
+from typeset import TypeSet, st, TObject
 from symtable import SymTable
-from types import TObject, NONE
        
 class TArguments():
     def __init__(self, arg, b = None):         
@@ -51,7 +50,7 @@ class TArguments():
             print('keyword-only parameter left:', leftover_keys)
             return False
         spare_keywords = set(bind.keys()) - self.names
-        if self.kwarg != None and len(spare_keywords) > 0:
+        if self.kwarg == None and len(spare_keywords) > 0:
             # keyword-only parameter left
             print('too many keyword arguments', spare_keywords)
             return False            
@@ -72,22 +71,22 @@ class TArguments():
 
 # TODO argslist as a class
 class TFunc(TObject):
-    def __init__(self, args, returns, t, bind = None):
-        assert isinstance(returns, (TypeSet, type(None)))
+    def __init__(self, args, typefunc, t, bind = None):
+        # assert isinstance(typefunc, (TypeSet, type(None)))
         self.orig_args = args
         
         self.t = t
         self.args = TArguments(args, bind)
         if t == None:
-            self.returns = st(NONE)
+            self.typefunc = lambda *x : st(TObject(type(None)))
         else:
-            self.returns = returns
+            self.typefunc = typefunc
     
     def __repr__(self):
-        return self.t + ' {0} -> {1}'.format(self.args, self.returns)
+        return self.t + ' {0} -> {1}'.format(self.args, self.typefunc())
 
     def with_bind(self, bind):
-        return TFunc(self.orig_args, self.returns, self.t, bind)
+        return TFunc(self.orig_args, self.typefunc, self.t, bind)
         
     def ismatch(self, actual_args):
         res = self.args.ismatch(actual_args)
@@ -99,7 +98,7 @@ class TFunc(TObject):
     def call(self, actual_args):
         if not self.ismatch(actual_args):
             return TypeSet({})
-        return self.returns
+        return self.typefunc(actual_args)
 
 
 class TClass(TObject):

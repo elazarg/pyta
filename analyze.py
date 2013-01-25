@@ -3,7 +3,6 @@
 '''
 TODO:
 
-* add binop support
 * type variables (lazy/memoizable?)
 * augmented assignment
 * single-valued-ints
@@ -30,18 +29,32 @@ import visitor, ast
 def readfile(filename, module = None):
     return ast.parse(open(filename).read())
 
-  
+def pretest():  
+    basedir = 'test/'
+    files = ['primitives.py', 'assign_simple.py', 'assign_multi.py', 'functions_and_calls.py']                 
+    for file in files:
+        print('test :', file)
+        res = visitor.Visitor()
+        res.visit(readfile(basedir + file))
+        print('test :', file, 'done')
+    print('pretest done')
+    return res
+ 
 def prelude():  
     g = visitor.Visitor()
     basedir = 'database/'
     files = ['object.py', 'int.py', 'float.py', 'complex.py',
-             'list.py', 'functions.py']                 
+             #'list.py',
+              'functions.py']                 
     for file in files:
         g.visit(readfile(basedir + file))
     g.print()
     return g
 
 def main():
+    r = pretest()
+    r.print()
+    return
     g = prelude()
     v = visitor.Visitor(g)
     r = readfile('test/parsed.py')

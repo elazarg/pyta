@@ -3,8 +3,7 @@ Created on Jan 23, 2013
 
 @author: elazar
 '''
-from typeset import TypeSet, st
-from types import NONE, BOOL
+from typeset import TypeSet, st, NONE, BOOL
 
 class SymTable:
     constants = {'None' : st(NONE), 'False' : st(BOOL), 'True' : st(BOOL)}

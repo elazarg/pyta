@@ -1,12 +1,14 @@
+a = 1.1*2.2
 x=1,2
 y,z=x
-#tx=5,5.5
-#tx=('fd', None)
-#q,t=tx
+tx=5,5.5
+tx=('fd', None)
+q,t=tx
 M=N=3
 #k=x[1]
 #tx[3]=2
 #a,b=0,1
+'''
 '''
 class A:
     def __getitem__(self, i):
@@ -16,9 +18,10 @@ class A:
 x=A()
 y=A.__getitem__(x, 2)
 z=x.__getitem__(2)
+
+
 q=x[2]
 
-a = 1.1*2.2
 a=1.0
 b = (1.1).__add__(2.2)
 
@@ -87,6 +90,7 @@ class B:
 #r=foo(2)
 z=B.x
 t=B.foo(1)
+'''
 '''
 '''
 
