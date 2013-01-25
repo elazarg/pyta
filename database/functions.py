@@ -123,13 +123,26 @@ def pow(x,y,z=0):
 def abs(x):
     return x
 
-'''
-def max(a,b):    return a
-def min():  TFunc.max,
-def filter():  TFunc.filter,
-def next():  TFunc.next,
-def reversed():  TFunc.abs,
-def sorted():  TFunc.abs,
-def sum():  TFunc.sum,
-def map(func, *iterables):    return iterables
-'''
+def max(a,b): 
+    return a
+
+def min(a, b):
+    return a
+
+def filter():
+    return []
+
+def next(x):
+    return x.__next__()
+    
+def reversed():
+    return []
+
+def sorted():
+    return []
+    
+def sum(iterable):
+    return iterable[0]
+
+def map(func, *iterables):
+    return iterables

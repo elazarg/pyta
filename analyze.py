@@ -33,13 +33,12 @@ def readfile(filename, module = None):
   
 def prelude():  
     g = visitor.Visitor()
-    g.visit(readfile('database/object.py'))
-    g.visit(readfile('database/int.py'))
-    g.visit(readfile('database/float.py'))
-    g.visit(readfile('database/complex.py'))    
-    g.visit(readfile('database/list.py'))    
-    g.visit(readfile('database/functions.py'))
-    #g.print()
+    basedir = 'database/'
+    files = ['object.py', 'int.py', 'float.py', 'complex.py',
+             'list.py', 'functions.py']                 
+    for file in files:
+        g.visit(readfile(basedir + file))
+    g.print()
     return g
 
 def main():
