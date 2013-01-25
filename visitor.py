@@ -1,6 +1,6 @@
 #!/sbin/python3
 import ast
-from typeset import TypeSet, Empty, Any, st
+from typeset import TypeSet, Any, st
 from types import TObject, TTuple, TList, TSeq, TDict
 from types import NONE, BOOL, INT, STR, BYTES, FLOAT, COMPLEX
 from definitions import TArguments, TFunc, TClass
@@ -20,6 +20,15 @@ def singletype(method):
     return wr
 
 class Visitor(ast.NodeVisitor):
+    '''
+    '''
+    def expression(m):
+        def wrapped(self, args):
+            #ast.dump(args)
+            res = m(self, args)
+            return self.visit(res)
+        return wrapped
+    
     def generic_visit(self, node):
         print(ast.dump(node))
         for n in ast.iter_child_nodes(node):
@@ -28,6 +37,10 @@ class Visitor(ast.NodeVisitor):
     def __init__(self, parent = None):
         self.sym = SymTable()
         self.parent = parent
+        if parent == None:
+            d = {'int' : INT, 'bool' : BOOL, 'float' : FLOAT, 'complex' : COMPLEX}
+            for k, v in d.items(): 
+                self.bind_weak(k, TypeSet({}))
     
     def lookup(self, name):
         res = self.sym.get_var(name, None)
@@ -84,45 +97,54 @@ class Visitor(ast.NodeVisitor):
         #tofix: contaminating global namespace 
         c = TClass(cls.name, cls.bases, cls.keywords, cls.starargs, cls.kwargs)
         cur = (cls.name, st(c))
+        
+        builtins = {'float', 'complex', 'int'}
+        if cls.name in builtins:
+            self.lookup(cls.name).readjust(cur[1])
+        self.bind_weak(*cur)
+ 
         v = Visitor(self)
         returns = v.visit_run(cls)
         if returns != None:
             print('cannot return from class definition')
         temp = v.sym
         c.update_namespace(temp)
-        self.bind_weak(*cur)
-        
+            
     def visit_Call(self, value):
         value.args = [self.visit(i) for i in value.args]
         for keyword in value.keywords:
             keyword.value = self.visit(keyword.value)
         func = value.func
         if isinstance(func, ast.Name):
-            res = TypeSet.union_all([foo.call(value) for foo in self.visit(func)
+            res = TypeSet.union_all([foo.call(value)
+                                      for foo in self.visit(func)
                                       if augisinstance(foo, (TFunc, TClass)) and foo.ismatch(value)])
         elif isinstance(func, ast.Attribute):
-            res = TypeSet.union_all([foo.call(value) for foo in self.get_attr_types(func.value, func.attr)])
+            collect = [foo.call(value) for foo in self.get_attr_types(func.value, func.attr)
+                                     if foo != None and foo.ismatch(value)]
+            if None in collect:
+                print('recursive class definition found')
+            res = TypeSet.union_all([foo.call(value)
+                                     for foo in self.get_attr_types(func.value, func.attr)
+                                     if foo != None and foo.ismatch(value)])
         assert isinstance(res, TypeSet)
         return res
+            
+    def visit_IfExp(self, ifexp):
+        r1 = self.visit(ifexp.body)
+        r2 = self.visit(ifexp.orelse)
+        res = r1.union(r2)
+        return res
     
-    def create_attribute_node(self, left, attr, params):
-        val = ast.Call(ast.Attribute(left, attr, ast.Load()),
-                         params, [], [], [])   
-        ast.dump(val)
-        return val
-        
+    @expression
     def visit_Subscript(self, sub):
-        value = self.create_attribute_node(sub.value, '__getitem__', 
-                                           [sub.slice.value])
-        return self.visit(value)
-    
+        from ast_transform import transform_subscript
+        return transform_subscript(sub)
+
+    @expression
     def visit_BinOp(self, binop):
-        left = self.visit(binop.left)
-        right= self.visit(binop.right)
-        name = '__{0}__'.format(ast.dump(binop.op).lower()[:-2])
-        value = self.create_attribute_node(left, name, [right])
-        print(ast.dump(value))
-        return self.visit(value)
+        from ast_transform import binop_to_method
+        return binop_to_method(binop)
     
     def visit_If(self, stat):
         return self.visit_all_childs(stat)
@@ -168,13 +190,14 @@ class Visitor(ast.NodeVisitor):
     def visit_Module(self, node):
         return self.visit_run(node)
     
-    @singletype
+    #@singletype    
     def visit_Num(self, value):
-        types = { int : INT, float : FLOAT, complex : COMPLEX }
-        res = types.get(type(value.n))
-        if res == None:
+        types = { int : 'int', float : 'float', complex : 'complex' }
+        name = types.get(type(value.n))
+        if name == None:
             print('unknown Num:', ast.dump(value))
-        return res
+            return None
+        return TypeSet({i.new_instance() for i in self.lookup(name)})
     
     @singletype
     def visit_Str(self, value):
@@ -209,8 +232,6 @@ class Visitor(ast.NodeVisitor):
     def visit_NameConstant(self, cons):
         c = {None : NONE, False : BOOL, True : BOOL}
         return c[cons.value]
-
-    
 
     @singletype
     def visit_ListComp(self, value):

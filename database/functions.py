@@ -16,32 +16,18 @@ def any(iterable):
 def ascii():
     return ""
 
-def bin(obj):
-    return ""
-
-def bool(obj=0):
-    return False
-
-def bytes(obj=b''):
-    return b''
-
 def callable(obj):
     return False
 
 def chr(st):
     return ""
 
-def complex(x=0):
-    return 0j
 
 def divmod(x,y):
     return (0,0)
 
 def dir(obj):
     return {"":""}
-
-def float(obj=0.0):
-    return 0.0
 
 def globals():
     return {"":""}
@@ -61,9 +47,8 @@ def id(obj):
 def input(text=''):
     return ""
 
-def int(obj=0):
-    return 0
-
+def bin(obj):
+    return ""
 def isinstance(obj, t):
     return False
 
@@ -73,8 +58,6 @@ def issubclass(obj):
 def len(obj):
     return 0
 
-def list(obj):
-    return []
 
 def locals():
     return {"" : ""}
@@ -95,23 +78,42 @@ def round(obj):
     pass
     return 0
 
-def set():
-    return {}
+
 
 def setattr():
     return None
+'''
+def bool(obj=0):
+    return False
 
+def bytes(obj=b''):
+    return b''
+
+
+def complex(x=0):
+    return 0j
+
+def float(obj=0.0):
+    return 0.0
+
+def int(obj=0):
+    return 0
+
+def list(obj):
+    return []
+def set():
+    return {}
 def str():
     return ""
-
 def tuple():
     return ()
-
 def type(x):
     class type:
         pass
     return type
 
+
+'''
 def vars():
     return {"" : ""}
 

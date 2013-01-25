@@ -12,7 +12,10 @@ class TObject:
 
     def __repr__(self):
         return repr(self.type).split(sep="'")[1]
-
+    '''
+    def __eq__(self, other):
+        return self.t == other.t
+    ''' 
     def has_type_attr(self, attr):
         res = self.get_type_attr(attr)
         return res != None
@@ -26,8 +29,6 @@ class TObject:
 
     def ismatch(self, actual_args):
         return False
-
-
     
 class AnyClass(TObject):
     def __init__(self):
@@ -44,28 +45,41 @@ class AnyClass(TObject):
 
 Any = AnyClass()
 
+
 class TypeSet:
+    def invariant(m):
+        def wrapped(self, *args):
+            res = m(self, *args)
+            self.to_invariant()
+            return res
+        return wrapped
     
+    @invariant
     def __init__(self, iterable):
         assert not isinstance(iterable, TypeSet)
         self.types = set(iterable)
-        self.to_invariant()
-        
+    
+    @invariant
+    def readjust(self, other):
+        self.types = other.types
+    
+    @invariant
     def update(self, iterable):
         self.types.update(iterable)
-        self.to_invariant()
         
+    @invariant
     def add(self, obj):
         assert not isinstance(obj, TypeSet)
         self.types.add(obj)
-        self.to_invariant()
 
+    @invariant
     def union(self, other):
         assert isinstance(other, TypeSet)
         return TypeSet(set.union(self.types, other.types)) 
     
     def to_invariant(self):
         assert not isinstance(self.types, TypeSet)
+        assert not any(isinstance(i, TypeSet) for i in self.types)
         if not all(issubclass(type(t), TObject) for t in self.types):
             print(self.types)
             assert False
@@ -83,7 +97,10 @@ class TypeSet:
     
     def __repr__(self):
         return 'T{' +', '.join([str(i) for i in self.types]) +'}'
-
+    '''
+    def __str__(self):
+        return 'TypeSet {0}'.format({type(i) for i in self.types})
+    '''     
     def __len__(self):
         return len(self.types)
  

@@ -13,7 +13,7 @@ class TNum(TObject):
 
 class TInt(TNum):
     def __init__(self, t=int):
-        pass
+        self.dict = {}
     
     def __repr__(self):
         return "int"
@@ -83,7 +83,8 @@ class TTuple(TSeq):
     def __init__(self, tvalues):
         self.types = tuple(tvalues)
         self.dict = TObject().dict
-   
+        self.dict.update({'__getitem__' : lambda x : self.types[x] }) 
+        
     def __len__(self):
         return len(self.types)
  
@@ -114,6 +115,7 @@ class TSet(TTuple):
     
 class TStr(TTuple):
     def __init__(self, t): 
+        self.dict = {}
         self.t = t
     
     def __repr__(self):

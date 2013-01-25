@@ -68,7 +68,7 @@ class TArguments():
         kws = ', '.join(('{0}={1}'.format(k, v) if v else k) for k, v in zip(self.kwonlyargs, self.kw_defaults))
         kwargs = '**' + self.kwarg if self.kwarg else None
         
-        return '({0})'.format( ', '.join(i for i in [pos, defs, varargs, kws, kwargs, self.bind] if i) )
+        return '({0})'.format( ', '.join(str(i) for i in [pos, defs, varargs, kws, kwargs, self.bind] if i) )
 
 # TODO argslist as a class
 class TFunc(TObject):
@@ -108,6 +108,7 @@ class TClass(TObject):
         self.keywords, self.starargs, self.kwargs = keywords, starargs, kwargs
         self.namespace = SymTable()
         self.type = self #should be 'TType'
+        self.id = TObject(self.bases, self)
         
     def update_namespace(self, sym):
         self.namespace.merge(sym)
@@ -125,7 +126,12 @@ class TClass(TObject):
         return x.ismatch(args)
     
     def call(self, args):
-        return st(TObject(self.bases, self))
+        #TODO : match signature
+        return st(self.new_instance())
+    
+    def new_instance(self):
+        "like call, but don't bother with signature"
+        return self.id
     
 if __name__=='__main__':
     import analyze

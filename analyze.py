@@ -35,15 +35,16 @@ def prelude():
     g = visitor.Visitor()
     g.visit(readfile('database/object.py'))
     g.visit(readfile('database/int.py'))
-    g.visit(readfile('database/float.py'))    
+    g.visit(readfile('database/float.py'))
+    g.visit(readfile('database/complex.py'))    
     g.visit(readfile('database/list.py'))    
     g.visit(readfile('database/functions.py'))
-    g.print()
+    #g.print()
     return g
 
 def main():
-    #g = prelude()
-    v = visitor.Visitor()
+    g = prelude()
+    v = visitor.Visitor(g)
     r = readfile('test/parsed.py')
     v.visit(r)
     v.print()
