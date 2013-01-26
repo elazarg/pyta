@@ -30,6 +30,10 @@ class TObject:
     def ismatch(self, actual_args):
         return False
     
+    def with_bind(self, x):
+        '''binds nothing for objects'''
+        return self
+    
 class AnyClass(TObject):
     def __init__(self):
         super(type)
