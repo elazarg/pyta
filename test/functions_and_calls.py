@@ -2,11 +2,11 @@ def a():
     pass
 
 a()
-
 def b():
     return 0
 
 anint = b()
+'''
 
 def c(x):
     return
@@ -79,3 +79,4 @@ j(1,2, z=6, q=5)
 j(1,2,3, z=6, q=5)
 j(1,2,3,4, z=6, q=5)
 j(1,2,3,4,5, z=6, q=5)
+'''

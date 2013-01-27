@@ -1,9 +1,10 @@
 #!/sbin/python3
 import ast
-from typeset import TypeSet, Any, st, NONE, BOOL
-from types import TObject, TTuple, TList, TSeq, TDict
+from typeset import TypeSet, Any, st
+from tobject import NONE, BOOL, TObject
+from types import TTuple, TList, TSeq, TDict
 from types import INT, STR, BYTES, FLOAT, COMPLEX
-from definitions import TArguments, TFunc, TClass
+from definitions import TArguments, TFunc, TYPE
 from symtable import SymTable
 
 def augisinstance(s, t):
@@ -35,7 +36,10 @@ class Visitor(ast.NodeVisitor):
             self.visit(n)
     
     def __init__(self, parent = None):
-        self.sym = SymTable()
+        if parent != None:
+            self.sym = SymTable(parent.sym)
+        else:
+            self.sym = SymTable()
         self.parent = parent
         
         if parent == None:
@@ -45,9 +49,11 @@ class Visitor(ast.NodeVisitor):
                 self.bind_weak(k, st(v))
     
     def lookup(self, name):
-        res = self.sym.get_var(name, None)
+        res = self.sym.get_var(name)
+        '''
         if self.parent and res == None:
             return self.parent.lookup(name)
+        '''
         return res
     
     def bind_weak(self, var_id, typeset):
@@ -66,6 +72,9 @@ class Visitor(ast.NodeVisitor):
         for target in ass.targets:
             if isinstance(target, ast.Name):
                 self.bind_weak(target.id, typeset) 
+            elif isinstance(target, ast.Attribute):
+                for t in self.visit(target.value):
+                    t.weak_bind(target.value.id, typeset)
             elif isinstance(target, ast.Tuple):
                 size = len(target.elts)
                 target_matrix = [v.split_to(size) for v in typeset if augisinstance(v, TSeq) and v.can_split_to(size)]
@@ -73,6 +82,8 @@ class Visitor(ast.NodeVisitor):
                 target_tuple = [TypeSet.union_all([v[i] for v in target_matrix]) for i in range(size)]
                 for name, typeset2 in zip(target.elts, target_tuple):
                     self.bind_weak(name.id, typeset2)
+            else:
+                assert False
 
     def visit_all_childs(self, node):
         returns = TypeSet({})
@@ -107,20 +118,18 @@ class Visitor(ast.NodeVisitor):
     def visit_ClassDef(self, cls):
         #assume for now that methods only calls previous ones
         #tofix: contaminating global namespace 
-        c = TClass(cls.name, cls.bases, cls.keywords, cls.starargs, cls.kwargs)
+        v = Visitor(self)
+        returns = v.visit_run(cls)
+        if len(returns) > 0:
+            print('cannot return from class definition')
+
+        c = TYPE.new_instance(cls, v.sym)
         cur = (cls.name, st(c))
         
         builtins = {'float', 'complex', 'int'}
         if cls.name in builtins:
             self.lookup(cls.name).readjust(cur[1])
         self.bind_weak(*cur)
- 
-        v = Visitor(self)
-        returns = v.visit_run(cls)
-        if returns != None:
-            print('cannot return from class definition')
-        temp = v.sym
-        c.update_namespace(temp)
             
     def visit_Call(self, value):
         value.args = [self.visit(i) for i in value.args]
@@ -130,7 +139,7 @@ class Visitor(ast.NodeVisitor):
         if isinstance(func, ast.Name):
             res = TypeSet.union_all([foo.call(value)
                                       for foo in self.visit(func)
-                                      if augisinstance(foo, (TFunc, TClass)) and foo.ismatch(value)])
+                                      if foo.ismatch(value)])
         elif isinstance(func, ast.Attribute):
             collect = [foo.call(value) for foo in self.get_attr_types(func.value, func.attr)
                                      if foo != None and foo.ismatch(value)]
@@ -215,6 +224,7 @@ class Visitor(ast.NodeVisitor):
             print('unknown Num:', ast.dump(value))
             return None
         res = TypeSet({i.new_instance() for i in self.lookup(name)})
+        
         assert len(res) > 0
         for i in res:
             i.value = value.n

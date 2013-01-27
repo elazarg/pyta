@@ -2,39 +2,11 @@
 def st(t):
     return TypeSet({t})
 
-class TObject:
-    def __init__(self, s=None, t=None):
-        if t == None and s != None:
-            t = type(s)
-        self.type = t
-        self.super = s
-        self.dict = {}
+def nts():
+    return TypeSet({})
 
-    def __repr__(self):
-        return repr(self.type).split(sep="'")[1]
-    '''
-    def __eq__(self, other):
-        return self.t == other.t
-    ''' 
-    def has_type_attr(self, attr):
-        res = self.get_type_attr(attr)
-        return res != None
-        
-    def get_type_attr(self, attr):
-        res = self.dict.get(attr)
-        if res == None:
-            res = self.type.get_type_attr(attr)
-            res = TypeSet({a.with_bind(self) for a in res})
-        return res
-
-    def ismatch(self, actual_args):
-        return False
     
-    def with_bind(self, x):
-        '''binds nothing for objects'''
-        return self
-    
-class AnyClass(TObject):
+class AnyClass():
     def __init__(self):
         super(type)
         
@@ -50,14 +22,14 @@ class AnyClass(TObject):
 Any = AnyClass()
 
 
-class TypeSet:
-    def invariant(m):
-        def wrapped(self, *args):
-            res = m(self, *args)
-            self.to_invariant()
-            return res
-        return wrapped
-    
+def invariant(m):
+    def wrapped(self, *args, **keyargs):
+        res = m(self, *args, **keyargs)
+        self.to_invariant()
+        return res
+    return wrapped
+
+class TypeSet:    
     @invariant
     def __init__(self, iterable):
         assert not isinstance(iterable, TypeSet)
@@ -84,9 +56,11 @@ class TypeSet:
     def to_invariant(self):
         assert not isinstance(self.types, TypeSet)
         assert not any(isinstance(i, TypeSet) for i in self.types)
+        '''
         if not all(issubclass(type(t), TObject) for t in self.types):
             print(self.types)
             assert False
+        '''
         if Any in self.types:
             self.types = {Any}
     
@@ -107,7 +81,4 @@ class TypeSet:
     '''     
     def __len__(self):
         return len(self.types)
- 
-BOOL = TObject(TObject, bool)
-NONE = TObject(TObject, type(None))
-Empty = TypeSet({})
+

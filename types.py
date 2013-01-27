@@ -1,14 +1,14 @@
-from typeset import TypeSet, st, TObject
+from tobject import TObject, SymTable
+from typeset import TypeSet, st
 from itertools import product
 from definitions import TFunc
 
 class TNum(TObject):
     def __init__(self, t):
-        self.dict = {}
+        self.instance_vars = SymTable()
         self.t = t
     
-    def get_dict(self):
-        return {i:j for i, j in list(self.dict.items()) + list(super.get_dict(self).items())}
+    #def get_dict(self):      return {i:j for i, j in list(self.instance_vars.items()) + list(super.get_dict(self).items())}
 
     def __repr__(self):
         return "num"
@@ -18,7 +18,7 @@ class TNum(TObject):
 
 class TInt(TNum):
     def __init__(self, t=int):
-        self.dict = {}
+        self.instance_vars = SymTable()
         self.t=t
     
     def __repr__(self):
@@ -27,7 +27,7 @@ class TInt(TNum):
 
 class TBool(TNum):
     def __init__(self, t=bool):
-        self.dict = TInt().dict
+        self.instance_vars = SymTable()
         self.t=bool
 
     def __repr__(self):
@@ -35,7 +35,7 @@ class TBool(TNum):
 
 class TFloat(TNum):
     def __init__(self, t=float):
-        self.dict = TInt().dict
+        self.instance_vars = SymTable()
         self.t=bool    
     
     def __repr__(self):
@@ -43,7 +43,7 @@ class TFloat(TNum):
 
 class TSeq(TObject):
     def __init__(self, *targs):
-        self.dict = TObject().dict
+        self.instance_vars = SymTable()
         self.types = set(targs)
     
     def typeset(self):
@@ -70,8 +70,7 @@ class TSeq(TObject):
     def __repr__(self):
         return "Seq(" + repr(self.types) + ")"
 
-    def get_dict(self):
-        return {i:j for i, j in list(self.dict.items()) + list(super.get_dict(self).items())} 
+    #def get_dict(self):       return {i:j for i, j in list(self.dict.items()) + list(super.get_dict(self).items())} 
 
 
 class TIter(TSeq):
@@ -80,7 +79,7 @@ class TIter(TSeq):
 
 class TDict(TSeq):
     def __init__(self, tkeys, tvalues):
-        self.dict = {}            
+        self.instance_vars = {}   
         skeys = TypeSet.union_all(tkeys) if len(tkeys) != 0 else TypeSet({})
         temp = set(sum([list(product(k, v)) for k, v in zip(tkeys, tvalues)], []))
         self.types = { k : TypeSet([v for tk, v in temp if tk == k]) for k in skeys}
@@ -91,7 +90,7 @@ class TDict(TSeq):
 class TTuple(TSeq):
     def __init__(self, tvalues):
         self.types = tuple(tvalues)
-        self.dict = TObject().dict
+        self.instance_vars = SymTable()
         self.additems()
     
     def additems(self):
@@ -103,7 +102,8 @@ class TTuple(TSeq):
             values = [x.value for x in actual_args.args[0] if isinstance(x.value, int)]
             return TypeSet(self.types[v] for v in values if v < len(self.types))
         func = TFunc(args, getitem , 'attr')
-        self.dict.update({'__getitem__' : st(func) }) 
+        #should be class function
+        self.instance_vars.update({'__getitem__' : st(func) }) 
         
     def __len__(self):
         return len(self.types)
@@ -121,8 +121,7 @@ class TTuple(TSeq):
     def __repr__(self):
         return repr(self.types)
 
-    def get_dict(self):
-        return {i:j for i, j in list(self.dict.items()) + list(super.get_dict(self).items())} 
+    #def get_dict(self):       return {i:j for i, j in list(self.dict.items()) + list(super.get_dict(self).items())} 
 
 
 class TList(TTuple):
@@ -135,7 +134,7 @@ class TSet(TTuple):
     
 class TStr(TTuple):
     def __init__(self, t): 
-        self.dict = {}
+        self.instance_vars = {}
         self.t = t
     
     def __repr__(self):

@@ -7,5 +7,5 @@ class B:
     
 b = B()
 bx = b.x
-'''
-'''
+
+b.y=5

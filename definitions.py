@@ -1,5 +1,5 @@
-
-from typeset import TypeSet, st, TObject
+from tobject import TObject
+from typeset import TypeSet, st
 from symtable import SymTable
        
 class TArguments():
@@ -74,7 +74,7 @@ class TFunc(TObject):
     def __init__(self, args, typefunc, t, bind = None):
         # assert isinstance(typefunc, (TypeSet, type(None)))
         self.orig_args = args
-        
+        self.instance_vars = SymTable()
         self.t = t
         self.args = TArguments(args, bind)
         if t == None:
@@ -102,21 +102,18 @@ class TFunc(TObject):
 
 
 class TClass(TObject):
-    def __init__(self, name, bases, keywords, starargs, kwargs):
-        self.name, self.bases = name, bases
-        self.keywords, self.starargs, self.kwargs = keywords, starargs, kwargs
-        self.namespace = SymTable()
+    def __init__(self):
         self.type = self #should be 'TType'
-        self.id = TObject(self.bases, self)
+        #self.id = TObject(self.bases, self)
         
     def update_namespace(self, sym):
         self.namespace.merge(sym)
     
     def __repr__(self):
-        return "Class: '{0}'".format(self.name)
+        return "'type'"
     
     def get_type_attr(self, name):
-        return self.namespace.get_var(name, None) 
+        return self.instance_vars.get_var(name, None) 
     
     def ismatch(self, args):
         x = self.namespace.get_var('__init__', None)
@@ -124,13 +121,26 @@ class TClass(TObject):
             return len(args.args)==0
         return x.ismatch(args)
     
-    def call(self, args):
+    def call(self, cls, body, enclosing = None):
         #TODO : match signature
-        return st(self.new_instance())
+        return st(TObject(cls.bases, self, body))
     
-    def new_instance(self):
+    def new_instance(self, cls, body, enclosing = None):
         "like call, but don't bother with signature"
-        return self.id
+        call = body.get_var('__init__')
+        if call==None:
+            import ast
+            args = ast.arguments([ast.arg('self', None)], None, None, [], None, None, [], [])
+            def __call__():
+                return TObject(None, self, TypeSet({}))
+            call = st(TFunc(args, __call__ , 'attr'))
+        body.bind('__call__', call)
+        return TObject(cls.bases, self, body)
+
+    def get_symtable(self):
+        return self.instance_vars
+
+TYPE = TClass()
     
 if __name__=='__main__':
     import analyze

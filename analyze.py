@@ -33,7 +33,9 @@ def pretest():
     basedir = 'test/'
     files = ['primitives.py',
              'assign_simple.py', 'assign_multi.py',
-             'functions_and_calls.py', 'classes_simple.py']                 
+             'functions_and_calls.py',
+              'classes_simple.py'
+              ]                 
     for file in files:
         print('test :', file)
         res = visitor.Visitor()
