@@ -83,7 +83,9 @@ class TFunc(TObject):
             self.typefunc = typefunc
     
     def __repr__(self):
-        return self.t + ' {0} -> {1}'.format(self.args, self.typefunc())
+        from ast import Call, Name, Load
+        c = Call(func=Name(id='x', ctx=Load()), args=[TypeSet({})], keywords=[], starargs=None, kwargs=None)
+        return self.t + ' {0} -> {1}'.format(self.args, self.typefunc(c))
 
     def with_bind(self, bind):
         return TFunc(self.orig_args, self.typefunc, self.t, bind)
@@ -131,7 +133,7 @@ class TClass(TObject):
         if call==None:
             import ast
             args = ast.arguments([ast.arg('self', None)], None, None, [], None, None, [], [])
-            def __call__():
+            def __call__(args):
                 return TObject(None, self, TypeSet({}))
             call = st(TFunc(args, __call__ , 'attr'))
         body.bind('__call__', call)

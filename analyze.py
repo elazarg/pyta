@@ -32,7 +32,8 @@ def readfile(filename, module = None):
 def pretest():  
     basedir = 'test/'
     files = ['primitives.py',
-             'assign_simple.py', 'assign_multi.py',
+             'assign_simple.py',
+              'assign_multi.py',
              'functions_and_calls.py',
               'classes_simple.py'
               ]                 
@@ -40,6 +41,7 @@ def pretest():
         print('test :', file)
         res = visitor.Visitor()
         res.visit(readfile(basedir + file))
+        res.print()
         print('test :', file, 'done')
     print('pretest done')
     return res
@@ -57,7 +59,6 @@ def prelude():
 
 def main():
     r = pretest()
-    r.print()
     return
     g = prelude()
     v = visitor.Visitor(g)

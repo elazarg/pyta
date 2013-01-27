@@ -79,7 +79,7 @@ class TIter(TSeq):
 
 class TDict(TSeq):
     def __init__(self, tkeys, tvalues):
-        self.instance_vars = {}   
+        self.instance_vars = SymTable()   
         skeys = TypeSet.union_all(tkeys) if len(tkeys) != 0 else TypeSet({})
         temp = set(sum([list(product(k, v)) for k, v in zip(tkeys, tvalues)], []))
         self.types = { k : TypeSet([v for tk, v in temp if tk == k]) for k in skeys}
@@ -134,7 +134,7 @@ class TSet(TTuple):
     
 class TStr(TTuple):
     def __init__(self, t): 
-        self.instance_vars = {}
+        self.instance_vars = SymTable()
         self.t = t
     
     def __repr__(self):
