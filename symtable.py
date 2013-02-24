@@ -3,9 +3,10 @@ Created on Jan 23, 2013
 
 @author: elazar
 '''
-from typeset import nts
 
-class _SymTable:
+
+
+class SymTable:
     #constants = {'None' : st(NONE), 'False' : st(BOOL), 'True' : st(BOOL)}
     def __init__(self, enclosing = None):
         self.vars =  {}
@@ -14,9 +15,10 @@ class _SymTable:
     def bind(self, var_id, typeset):
         assert isinstance(var_id, str)
         
-        ts = self.get_var(var_id, nts())
+        import typeset 
+        ts = self.get_var(var_id, typeset.nts())
         if not ts:
-            ts = self.vars[var_id] = nts()
+            ts = self.vars[var_id] = typeset.nts()
         ts.update(typeset)
 
     def update(self, dic):
@@ -24,14 +26,11 @@ class _SymTable:
             self.bind(k, v)
     
     def merge(self, other):
-        assert isinstance(other, _SymTable)
+        assert isinstance(other, SymTable)
         for k,v in other.vars.items():
             self.bind(k, v)
         
     def get_var(self, name, default = None):
-        #prior 3.4: 
-        #consts = _SymTable.constants.get(name, TypeSet({}))
-        #return self.vars.get(name, TypeSet({})).union(consts)
         res = self.vars.get(name, None)
         if res != None:
             return res
@@ -46,13 +45,13 @@ class _SymTable:
         return '{0}'.format(repr(self.vars))
     
     def __eq__(self, other):
-        return isinstance(other, _SymTable) and set(self.vars.items) == set(other.vars.items())
+        return isinstance(other, SymTable) and set(self.vars.items) == set(other.vars.items())
     
     def __len__(self):
         return len(self.vars)
     
     def includes(self, other):
-        if not isinstance(other, _SymTable):
+        if not isinstance(other, SymTable):
             return False
         if not set(self.keys()).issuperset(set(other.keys())):
             return False  
@@ -66,3 +65,4 @@ class _SymTable:
             print('\t'*depth + '{0} : {1}'.format(k,v))
             for c in v:
                 c.get_symtable().print(depth+1)
+                
