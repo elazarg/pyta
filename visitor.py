@@ -1,19 +1,16 @@
 #!/sbin/python3
-import ast
-from typeset import TypeSet, Any, st
-from tobject import NONE, BOOL, TObject
-from types import TTuple, TList, TSeq, TDict
-from types import INT, STR, BYTES, FLOAT, COMPLEX
-from definitions import TArguments, TFunc, TYPE
-from symtable import SymTable
+import ast 
+from typeset import _TypeSet, Any
+from types import *
+from symtable import _SymTable
 
-def augisinstance(s, t):
+def augisinstance(s, t): 
     return s==Any or isinstance(s,t)
 
 def singletype(method):
     def wr(self, node):
         t = method(self, node)
-        if not issubclass(type(t), TObject):
+        if type(t) is _TypeSet:
             print(method)
             print(t)
             assert False
@@ -37,9 +34,9 @@ class Visitor(ast.NodeVisitor):
     
     def __init__(self, parent = None):
         if parent != None:
-            self.sym = SymTable(parent.sym)
+            self.sym = _SymTable(parent.sym)
         else:
-            self.sym = SymTable()
+            self.sym = _SymTable()
         self.parent = parent
         
         if parent == None:
@@ -62,10 +59,8 @@ class Visitor(ast.NodeVisitor):
     def print(self):
         self.sym.print()
     
-    @visit_result
     def visit_AugAssign(self, ass):
-        from ast_transform import augassign_to_method
-        return augassign_to_method(ass)
+        assert False
         
     def visit_Assign(self, ass):
         typeset = self.visit(ass.value)
@@ -77,16 +72,16 @@ class Visitor(ast.NodeVisitor):
                     t.weak_bind(target.value.id, typeset)
             elif isinstance(target, ast.Tuple):
                 size = len(target.elts)
-                target_matrix = [v.split_to(size) for v in typeset if augisinstance(v, TSeq) and v.can_split_to(size)]
+                target_matrix = [v.split_to(size) for v in typeset if augisinstance(v, SEQ) and v.can_split_to(size)]
                 assert target_matrix != []
-                target_tuple = [TypeSet.union_all([v[i] for v in target_matrix]) for i in range(size)]
+                target_tuple = [_TypeSet.union_all([v[i] for v in target_matrix]) for i in range(size)]
                 for name, typeset2 in zip(target.elts, target_tuple):
                     self.bind_weak(name.id, typeset2)
             else:
                 assert False
 
     def visit_all_childs(self, node):
-        returns = TypeSet({})
+        returns = _TypeSet({})
         for n in ast.iter_child_nodes(node):
             res = self.visit(n)
             if isinstance(n, ast.stmt) and res != None:
@@ -98,7 +93,7 @@ class Visitor(ast.NodeVisitor):
         #print(seq)
         seq1 = [c for c in seq if c.has_type_attr(name)]
         #print(seq1)
-        return TypeSet.union_all({
+        return _TypeSet.union_all({
                 c.get_type_attr(name)
                 for c in seq1})
     
@@ -109,7 +104,7 @@ class Visitor(ast.NodeVisitor):
         #TODO : add type variables
         #TODO : support self-references through symtable
         v = Visitor(self)
-        returns = v.visit_run(func)
+        returns = v.run(func)
         if len(returns)==0:
             returns = self.lookup('NoneType')
         res = self.create_func(func.args, returns, 'func')
@@ -119,7 +114,7 @@ class Visitor(ast.NodeVisitor):
         #assume for now that methods only calls previous ones
         #tofix: contaminating global namespace 
         v = Visitor(self)
-        returns = v.visit_run(cls)
+        returns = v.run(cls)
         if len(returns) > 0:
             print('cannot return from class definition')
 
@@ -137,7 +132,7 @@ class Visitor(ast.NodeVisitor):
             keyword.value = self.visit(keyword.value)
         func = value.func
         if isinstance(func, ast.Name):
-            res = TypeSet.union_all([foo.call(value)
+            res = _TypeSet.union_all([foo.call(value)
                                       for foo in self.visit(func)
                                       if foo.ismatch(value)])
         elif isinstance(func, ast.Attribute):
@@ -145,10 +140,10 @@ class Visitor(ast.NodeVisitor):
                                      if foo != None and foo.ismatch(value)]
             if None in collect:
                 print('recursive class definition found')
-            res = TypeSet.union_all([foo.call(value)
+            res = _TypeSet.union_all([foo.call(value)
                                      for foo in self.get_attr_types(func.value, func.attr)
                                      if foo != None and foo.ismatch(value)])
-        assert isinstance(res, TypeSet)
+        assert isinstance(res, _TypeSet)
         return res
             
     def visit_IfExp(self, ifexp):
@@ -157,15 +152,11 @@ class Visitor(ast.NodeVisitor):
         res = r1.union(r2)
         return res
     
-    @visit_result
     def visit_Subscript(self, sub):
-        from ast_transform import transform_subscript
-        return transform_subscript(sub)
+        assert False
 
-    @visit_result
     def visit_BinOp(self, binop):
-        from ast_transform import binop_to_method
-        return binop_to_method(binop)
+        assert False
     
     def visit_If(self, stat):
         return self.visit_all_childs(stat)
@@ -200,30 +191,26 @@ class Visitor(ast.NodeVisitor):
             #assert len(res)>0
         return res
 
-    def visit_Pass(self, ps):
-        pass
-
-    def visit_run(self, node):
-        return_values = TypeSet({})
+    def run(self, node):
+        return_values = _TypeSet({})
         for n in node.body:
             ret = self.visit(n)
             if ret != None:
                 return_values.update(ret)
-        assert isinstance(return_values, TypeSet)
+        assert isinstance(return_values, _TypeSet)
         #if len(return_values) > 0:
         return return_values
 
     def visit_Module(self, node):
-        return self.visit_run(node)
-    
-    #@singletype    
+        return self.run(node)
+      
     def visit_Num(self, value):
         types = { int : 'int', float : 'float', complex : 'complex' }
         name = types.get(type(value.n))
         if name == None:
             print('unknown Num:', ast.dump(value))
             return None
-        res = TypeSet({i.new_instance() for i in self.lookup(name)})
+        res = _TypeSet({i.new_instance('int object', None) for i in self.lookup(name)})
         
         assert len(res) > 0
         for i in res:
@@ -242,21 +229,21 @@ class Visitor(ast.NodeVisitor):
     def visit_Dict(self, value):
         keys=[self.visit(i) for i in value.keys]
         values=[self.visit(i) for i in value.values]
-        return TDict(keys,values)
+        return DICT(keys,values)
 
     @singletype    
     def visit_Tuple(self, value):
-        return TTuple([self.visit(i) for i in value.elts])
+        return TUPLE([self.visit(i) for i in value.elts])
         
     @singletype
     def visit_List(self, value):
-        return TList([self.visit(i) for i in value.elts])
+        return LIST([self.visit(i) for i in value.elts])
 
     def visit_Name(self, value):
         res = self.lookup(value.id)
         if res == None:
-            res = TypeSet({})
-        assert isinstance(res, TypeSet)
+            res = _TypeSet({})
+        assert isinstance(res, _TypeSet)
         return res
     
     @singletype
@@ -274,8 +261,8 @@ class Visitor(ast.NodeVisitor):
         for i in val:
             v.bind_weak(name, i.typeset())
         vall = v.visit(value.elt)
-        res = TSeq.fromset(vall)
-        assert not isinstance(res, TypeSet)
+        res = SEQ.fromset(vall)
+        assert not isinstance(res, _TypeSet)
         return res
     
     @singletype
@@ -290,7 +277,7 @@ class Visitor(ast.NodeVisitor):
         return TArguments(args)
         
     def getseq(self, expr):
-        return TypeSet({v for v in self.visit(expr.iter) if augisinstance(v, TSeq)})
+        return _TypeSet({v for v in self.visit(expr.iter) if augisinstance(v, SEQ)})
     
     def create_func(self, args, returns, t):
         args.defaults = [self.visit(i) for i in args.defaults]
@@ -301,3 +288,4 @@ class Visitor(ast.NodeVisitor):
 if __name__=='__main__':
     import analyze
     analyze.main()
+    

@@ -1,5 +1,7 @@
 class A:
     pass
+x=1
+'''
 a = A()
 
 class B:
@@ -9,3 +11,4 @@ b = B()
 bx = b.x
 
 b.y=5
+'''

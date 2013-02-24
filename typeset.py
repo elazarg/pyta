@@ -1,9 +1,9 @@
 
 def st(t):
-    return TypeSet({t})
+    return _TypeSet({t})
 
 def nts():
-    return TypeSet({})
+    return _TypeSet({})
 
     
 class AnyClass():
@@ -29,10 +29,10 @@ def invariant(m):
         return res
     return wrapped
 
-class TypeSet:    
+class _TypeSet:    
     @invariant
     def __init__(self, iterable):
-        assert not isinstance(iterable, TypeSet)
+        assert not isinstance(iterable, _TypeSet)
         self.types = set(iterable)
     
     @invariant
@@ -45,17 +45,17 @@ class TypeSet:
         
     @invariant
     def add(self, obj):
-        assert not isinstance(obj, TypeSet)
+        assert not isinstance(obj, _TypeSet)
         self.types.add(obj)
 
     @invariant
     def union(self, other):
-        assert isinstance(other, TypeSet)
-        return TypeSet(set.union(self.types, other.types)) 
+        assert isinstance(other, _TypeSet)
+        return _TypeSet(set.union(self.types, other.types)) 
     
     def to_invariant(self):
-        assert not isinstance(self.types, TypeSet)
-        assert not any(isinstance(i, TypeSet) for i in self.types)
+        assert not isinstance(self.types, _TypeSet)
+        assert not any(isinstance(i, _TypeSet) for i in self.types)
         '''
         if not all(issubclass(type(t), TObject) for t in self.types):
             print(self.types)
@@ -70,14 +70,14 @@ class TypeSet:
     @staticmethod
     def union_all(iterable):
         if len(iterable)==0:
-            return TypeSet({})
-        return TypeSet(set.union(*[i.types for i in iterable]))
+            return _TypeSet({})
+        return _TypeSet(set.union(*[i.types for i in iterable]))
     
     def __repr__(self):
         return 'T{' +', '.join([str(i) for i in self.types]) +'}'
     '''
     def __str__(self):
-        return 'TypeSet {0}'.format({type(i) for i in self.types})
+        return '_TypeSet {0}'.format({type(i) for i in self.types})
     '''     
     def __len__(self):
         return len(self.types)

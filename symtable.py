@@ -5,7 +5,7 @@ Created on Jan 23, 2013
 '''
 from typeset import nts
 
-class SymTable:
+class _SymTable:
     #constants = {'None' : st(NONE), 'False' : st(BOOL), 'True' : st(BOOL)}
     def __init__(self, enclosing = None):
         self.vars =  {}
@@ -24,13 +24,13 @@ class SymTable:
             self.bind(k, v)
     
     def merge(self, other):
-        assert isinstance(other, SymTable)
+        assert isinstance(other, _SymTable)
         for k,v in other.vars.items():
             self.bind(k, v)
         
     def get_var(self, name, default = None):
         #prior 3.4: 
-        #consts = SymTable.constants.get(name, TypeSet({}))
+        #consts = _SymTable.constants.get(name, TypeSet({}))
         #return self.vars.get(name, TypeSet({})).union(consts)
         res = self.vars.get(name, None)
         if res != None:
@@ -46,13 +46,13 @@ class SymTable:
         return '{0}'.format(repr(self.vars))
     
     def __eq__(self, other):
-        return isinstance(other, SymTable) and set(self.vars.items) == set(other.vars.items())
+        return isinstance(other, _SymTable) and set(self.vars.items) == set(other.vars.items())
     
     def __len__(self):
         return len(self.vars)
     
     def includes(self, other):
-        if not isinstance(other, SymTable):
+        if not isinstance(other, _SymTable):
             return False
         if not set(self.keys()).issuperset(set(other.keys())):
             return False  

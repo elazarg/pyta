@@ -27,14 +27,17 @@ TODO:
 import visitor, ast
 
 def readfile(filename, module = None):
-    return ast.parse(open(filename).read())
+    x = ast.parse(open(filename).read())
+    from ast_transform import Transformer
+    Transformer().visit(x)
+    return x
 
 def pretest():  
     basedir = 'test/'
-    files = ['primitives.py',
-             'assign_simple.py',
-              'assign_multi.py',
-             'functions_and_calls.py',
+    files = [#'primitives.py',
+             #'assign_simple.py',
+             # 'assign_multi.py',
+             #'functions_and_calls.py',
               'classes_simple.py'
               ]                 
     for file in files:

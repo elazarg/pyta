@@ -1,0 +1,15 @@
+TObject(super = None, type = TObject_Class)
+	TObject_Class(super = TObject, type = TType)
+
+TType(super = TObject, type = TType)
+
+TTuple_Class(super = TObject_Class, type = TType)
+	TStr_Class(super = TTuple_Class, type = TType)
+
+TNum_Class(super = TObject_Class, type = TType)
+	TInt_Class(super = TNum_Class, type = TType)
+	TBool_Class(super = TNum_Class, type = TType)
+	
+TFloat_Class(super = TObject_Class, type = TType)
+
+TDict_Class(super = TObject_Class, type = TType)
