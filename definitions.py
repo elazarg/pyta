@@ -1,4 +1,4 @@
-from types import Instance, TypeSet, st
+from types import Instance, TypeSet, st, Class
 from symtable import SymTable
        
 class Arguments():
@@ -68,24 +68,26 @@ class Arguments():
         
         return '({0})'.format( ', '.join(str(i) for i in [pos, defs, varargs, kws, kwargs, self.bind] if i) )
 
+FUNCTION_CLASS = Class('function')
+
 class Function(Instance):
     def __init__(self, args, typefunc, t, bind = None):
         # assert isinstance(typefunc, (TypeSet, type(None)))
+        Instance.__init__(self, FUNCTION_CLASS)
         self.orig_args = args
-        self.instance_vars = SymTable()
         self.t = t
-        self.args = TArguments(args, bind)
+        self.args = Arguments(args, bind)
         if t == None:
             self.typefunc = lambda *x : st(Instance(type(None)))
         else:
             self.typefunc = typefunc
     
-    def __repr__(self):
+    def tostr(self):
         from ast import Call, Name, Load
         c = Call(func=Name(id='x', ctx=Load()), args=[TypeSet({})], keywords=[], starargs=None, kwargs=None)
-        return self.t + ' {0} -> {1}'.format(self.args, self.typefunc(c))
+        return self.t + ' {0} -> {1}'.format(self.args, self.typefunc(c).tostr())
 
-    def with_bind(self, bind):
+    def bind_parameter(self, bind):
         return Function(self.orig_args, self.typefunc, self.t, bind)
         
     def ismatch(self, actual_args):

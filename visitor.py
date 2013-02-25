@@ -1,6 +1,6 @@
 #!/sbin/python3
 import ast 
-from types import TypeSet, Class, ANY, TYPE, st
+from types import TypeSet, Class, Specific, ANY, st, join, joinall
 from types import BOOL, INT, FLOAT, NONE, COMPLEX
 from types import BYTES, STR, TUPLE, LIST, SEQ, DICT
 from definitions import Function, Arguments
@@ -8,16 +8,6 @@ from symtable import SymTable
 
 def augisinstance(s, t): 
     return s==ANY or isinstance(s,t)
-
-def singletype(method):
-    def wr(self, node):
-        t = method(self, node)
-        if type(t) is TypeSet:
-            print(method)
-            print(t)
-            assert False
-        return st(t)
-    return wr
 
 def visit_result(method):
     def wrapped(self, args):
@@ -30,7 +20,6 @@ def visit_result(method):
 class Visitor(ast.NodeVisitor):
     
     def generic_visit(self, node):
-        print(ast.dump(node))
         for n in ast.iter_child_nodes(node):
             self.visit(n)
     
@@ -42,10 +31,9 @@ class Visitor(ast.NodeVisitor):
         self.parent = parent
         
         if parent == None:
-            self.bind_weak('NoneType', st(NONE))
             d = {'int' : INT, 'bool' : BOOL, 'float' : FLOAT, 'complex' : COMPLEX}
             for k, v in d.items(): 
-                self.bind_weak(k, st(v))
+                self.bind_weak(k, v)
     
     def lookup(self, name):
         res = self.sym.get_var(name)
@@ -65,18 +53,17 @@ class Visitor(ast.NodeVisitor):
         assert False
         
     def visit_Assign(self, ass):
-        TypeSet = self.visit(ass.value)
+        val = self.visit(ass.value)
         for target in ass.targets:
             if isinstance(target, ast.Name):
-                self.bind_weak(target.id, TypeSet) 
+                self.bind_weak(target.id, val) 
             elif isinstance(target, ast.Attribute):
-                for t in self.visit(target.value):
-                    t.weak_bind(target.value.id, TypeSet)
+                self.visit(target.value).bind(target.attr, val)
             elif isinstance(target, ast.Tuple):
                 size = len(target.elts)
-                target_matrix = [v.split_to(size) for v in TypeSet if augisinstance(v, SEQ) and v.can_split_to(size)]
+                target_matrix = [v.split_to(size) for v in val if augisinstance(v, SEQ) and v.can_split_to(size)]
                 assert target_matrix != []
-                target_tuple = [TypeSet.union_all([v[i] for v in target_matrix]) for i in range(size)]
+                target_tuple = [val.union_all([v[i] for v in target_matrix]) for i in range(size)]
                 for name, TypeSet2 in zip(target.elts, target_tuple):
                     self.bind_weak(name.id, TypeSet2)
             else:
@@ -91,13 +78,7 @@ class Visitor(ast.NodeVisitor):
         return returns
     
     def get_attr_types(self, value, name):
-        seq = self.visit(value)
-        #print(seq)
-        seq1 = [c for c in seq if c.has_type_attr(name)]
-        #print(seq1)
-        return TypeSet.union_all({
-                c.get_type_attr(name)
-                for c in seq1})
+        return self.visit(value).lookup(name)
     
     def visit_Attribute(self, attr):
         return self.get_attr_types(attr.value, attr.attr)
@@ -107,8 +88,8 @@ class Visitor(ast.NodeVisitor):
         #TODO : support self-references through symtable
         v = Visitor(self)
         returns = v.run(func)
-        if len(returns)==0:
-            returns = self.lookup('NoneType')
+        if not returns:
+            returns = NONE
         res = self.create_func(func.args, returns, 'func')
         self.bind_weak(func.name, st(res))
     
@@ -119,7 +100,7 @@ class Visitor(ast.NodeVisitor):
         if returns:
             print('cannot return from class definition')
 
-        c = Class(cls.name, v.sym, cls)
+        c = Class(cls.name, v.sym)
         cur = (cls.name, st(c))
         
         builtins = {'float', 'complex', 'int'}
@@ -133,25 +114,14 @@ class Visitor(ast.NodeVisitor):
             keyword.value = self.visit(keyword.value)
         func = value.func
         if isinstance(func, ast.Name):
-            res = TypeSet.union_all([foo.call(value)
-                                      for foo in self.visit(func)
-                                      if foo.ismatch(value)])
+            res = self.visit(func).call(value)
         elif isinstance(func, ast.Attribute):
-            collect = [foo.call(value) for foo in self.get_attr_types(func.value, func.attr)
-                                     if foo != None and foo.ismatch(value)]
-            if None in collect:
-                print('recursive class definition found')
-            res = TypeSet.union_all([foo.call(value)
-                                     for foo in self.get_attr_types(func.value, func.attr)
-                                     if foo != None and foo.ismatch(value)])
-        assert isinstance(res, TypeSet)
+            res = self.get_attr_types(func.value, func.attr).call(value)
+            #if None in res:             print('recursive class definition found')
         return res
             
     def visit_IfExp(self, ifexp):
-        r1 = self.visit(ifexp.body)
-        r2 = self.visit(ifexp.orelse)
-        res = r1.union(r2)
-        return res
+        return join(self.visit(ifexp.body), self.visit(ifexp.orelse))
     
     def visit_Subscript(self, sub):
         assert False
@@ -185,22 +155,10 @@ class Visitor(ast.NodeVisitor):
         return self.visit_While(stat)
     
     def visit_Return(self, ret):
-        if ret.value == None:
-            res = self.lookup('NoneType')
-        else:
-            res = self.visit(ret.value)
-            #assert len(res)>0
-        return res
+        return NONE if ret.value == None else self.visit(ret.value)
 
     def run(self, node):
-        return_values = TypeSet({})
-        for n in node.body:
-            ret = self.visit(n)
-            if ret != None:
-                return_values.update(ret)
-        assert isinstance(return_values, TypeSet)
-        #if len(return_values) > 0:
-        return return_values
+        return joinall(self.visit(n) for n in node.body)
 
     def visit_Module(self, node):
         return self.run(node)
@@ -211,12 +169,7 @@ class Visitor(ast.NodeVisitor):
         if name == None:
             print('unknown Num:', ast.dump(value))
             return None
-        res = TypeSet({i.new_instance('int object', None) for i in self.lookup(name)})
-        
-        assert len(res) > 0
-        for i in res:
-            i.value = value.n
-        return res
+        return Specific(self.lookup(name), value.n)
     
     def visit_Str(self, value):
         return STR
@@ -236,11 +189,7 @@ class Visitor(ast.NodeVisitor):
         return LIST([self.visit(i) for i in value.elts])
 
     def visit_Name(self, value):
-        res = self.lookup(value.id)
-        if res == None:
-            res = TypeSet({})
-        assert isinstance(res, TypeSet)
-        return res
+        return self.lookup(value.id)
     
     def visit_NameConstant(self, cons):
         c = {None : NONE, False : BOOL, True : BOOL}

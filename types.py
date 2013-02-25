@@ -35,8 +35,16 @@ class InstanceInterface:
     
     def lookup(self, name:str):
         raise NotImplementedError()
-      
+    
+    def bind(self, obj):
+        return self      
   
+    def get_unspecific(self):
+        return self
+
+    def bind_parameter(self, param):
+        return self
+    
 class AnyType(InstanceInterface):
     def __repr__(self):
         return "Any"
@@ -52,7 +60,9 @@ class AnyType(InstanceInterface):
     
     def lookup(self, name):
         return self
-    
+
+    def tostr(self):
+        return 'Any'
 
 ANY = AnyType()
  
@@ -65,13 +75,14 @@ join(any, *)==any
 
 'transition function'
 def join(a, b):
-    if a==b:                    return a
+    if b is None:               return a
+    if a == b:                  return a
     if a is ANY or b is ANY:    return ANY
-    '''
-    if type(a.get_unspecific())==type(b.get_unspecific())==Specific:
+
+    if type(a.get_unspecific())==type(b.get_unspecific()) and type(a)==Specific:
         return a.get_unspecific()
-    '''
-    if type(a)==type(b)==Instance:
+
+    if type(a) == type(b) == Instance:
         return TypeSet([a, b])
     
     return a + b
@@ -86,21 +97,34 @@ def st(t):
 def nts():
     return TypeSet({})
 
+def joinall(iterable):
+    from functools import reduce
+    return reduce(join, iterable, nts())
+
 class TypeSet(InstanceInterface):
+    '''Composite
+    * represents a composite Component (component having children)
+    * implements methods to manipulate children
+    * implements all Component methods, generally by delegating them to its children
+    '''
     def __init__(self, instances):
         self.types = set(instances)
     
     def call(self, args:list):
-        return join(t.call(args) for t in self.types)
+        return joinall(t.call(args) for t in self.types)
     
     def lookup(self, name:str):
-        return join(t.lookup(name) for t in self.types)
+        return joinall(t.lookup(name) for t in self.types)
 
     def readjust(self, other):
         self.types = other.types
 
+    def bind(self, name, value):
+        for t in self.types:
+            t.bind(name, value) 
+
     def add(self, obj):
-        if type(obj)==TypeSet:
+        if type(obj) == TypeSet:
             self.types.update(obj.types)
         else:
             self.types.add(obj)
@@ -109,15 +133,17 @@ class TypeSet(InstanceInterface):
         'not mutating'
         res = TypeSet(self.types)
         res.add(obj)
+        if len(res.types) == 1:
+            return res.types.pop()
         return res
     
     __radd__ = __add__
     
     def __bool__(self):
-        return self.types != {}
+        return len(self.types) > 0
 
     def tostr(self):
-        return 'T{' + ', '.join([t.tostr() for t in self.types]) + '}'
+        return 'T{0}'.format(', '.join([t.tostr() for t in self.types]))
     
 from symtable import SymTable
     
@@ -129,71 +155,94 @@ class Instance(InstanceInterface):
         if sym is None:
             sym = SymTable()
         
-        self.mytype=mytype
-        self.sym=sym
+        self.mytype = mytype
+        self.sym = sym
         
     def call(self, args):
         return self.lookup('__call__').call(args)
     
     def lookup(self, name):
-        return self.sym[name].union(self.mytype.lookup(name).bind(self))
+        return join(self.sym[name], self.mytype.lookup(name).bind_parameter(self))
     
     def tostr(self):
-        return 'Instance: ' + self.mytype.tostr()
+        return self.get_type().name
     
     def get_type(self):
         return self.mytype
     
-class Specific(Instance):
-    def get_unspecific(self):
-        raise NotImplementedError
+    def bind(self, name, value):
+        self.sym.bind(name, value) 
 
-TYPECONT=[None]
+    
+class Specific(Instance):
+    def __init__(self, mytype, value):
+        '@value is THE ONLY place where source object is in the target type-system'
+        Instance.__init__(self, mytype)
+        self.value = value
+
+    def get_unspecific(self):
+        return self.get_type().instance
+
+    def lookup(self, name:str):
+        return self.get_unspecific().lookup(self, name)
+
+    def bind(self, obj):
+        return Instance.bind(self, obj)
+
+    def tostr(self):
+        return self.get_unspecific().tostr() + '[{0}]'.format(self.value)
+    
+TYPECONT = [None]
     
 class Class(Instance):
-    def __init__(self, name:str, sym:SymTable=None, cls=None):
-        if sym is None: sym=SymTable()
+    def __init__(self, name:str, sym:SymTable=None):
+        if sym is None: sym = SymTable()
         assert type(name) is str and type(sym) is SymTable
         sym.bind(name, self)
         self.name = name
         Instance.__init__(self, TYPECONT[0], sym)
+        self.instance = Instance(self)
         
     def call(self, args):
-        if self.lookup('__init__').ismatch(args):
+        init = self.lookup('__init__')
+        if not init or init.bind_parameter(self.instance).call(args):
             return self.instance
-        return st({})
+        return nts()
     
     def lookup(self, name):
-        return self.sym[name].union(self.mytype.lookup(name).bind(self))
+        return join(self.sym[name], self.mytype.lookup(name).bind_parameter(self))
     
     def tostr(self):
-        return 'Class: {0}({1})'.format(self.name, self.get_type().tostr()) 
-##
+        return self.get_type().name + '<{0}>'.format(self.name) 
+# #
 '''
 Specific Type Objects
 '''
-##
+# # 
 
 class Type(Class):
     def __init__(self):
-        TYPECONT[0]=self
+        TYPECONT[0] = self
         Class.__init__(self, 'type', SymTable())
         
     def tostr(self):
-        return 'Class: type'
+        return 'type'
 
+    def lookup(self, name):
+        return self.sym[name]
+  
 TYPE = Type()
 
+BOOL = Class('bool')
+INT = Class('int')
+FLOAT = Class('float')
+COMPLEX = Class('complex')
 
-BOOL=Class('bool')
-INT=Class('int')
-FLOAT=Class('float')
-NONE=Class('NoneType')
-COMPLEX=Class('complex')
+NONE = Specific(Class('NoneType'), None)
 
-BYTES=STR=TUPLE=LIST=SEQ=DICT=ANY
+BYTES = STR = TUPLE = LIST = SEQ = DICT = ANY
 
  
-if __name__=='__main__':
+if __name__ == '__main__':
     import analyze
     analyze.main()        
