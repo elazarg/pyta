@@ -1,16 +1,18 @@
 #!/sbin/python3
 import ast 
-from typeset import _TypeSet, Any
-from types import *
-from symtable import _SymTable
+from types import TypeSet, Class, ANY, TYPE, st
+from types import BOOL, INT, FLOAT, NONE, COMPLEX
+from types import BYTES, STR, TUPLE, LIST, SEQ, DICT
+from definitions import Function, Arguments
+from symtable import SymTable
 
 def augisinstance(s, t): 
-    return s==Any or isinstance(s,t)
+    return s==ANY or isinstance(s,t)
 
 def singletype(method):
     def wr(self, node):
         t = method(self, node)
-        if type(t) is _TypeSet:
+        if type(t) is TypeSet:
             print(method)
             print(t)
             assert False
@@ -34,9 +36,9 @@ class Visitor(ast.NodeVisitor):
     
     def __init__(self, parent = None):
         if parent != None:
-            self.sym = _SymTable(parent.sym)
+            self.sym = SymTable(parent.sym)
         else:
-            self.sym = _SymTable()
+            self.sym = SymTable()
         self.parent = parent
         
         if parent == None:
@@ -53,8 +55,8 @@ class Visitor(ast.NodeVisitor):
         '''
         return res
     
-    def bind_weak(self, var_id, typeset):
-        return self.sym.bind(var_id, typeset)
+    def bind_weak(self, var_id, TypeSet):
+        return self.sym.bind(var_id, TypeSet)
     
     def print(self):
         self.sym.print()
@@ -63,25 +65,25 @@ class Visitor(ast.NodeVisitor):
         assert False
         
     def visit_Assign(self, ass):
-        typeset = self.visit(ass.value)
+        TypeSet = self.visit(ass.value)
         for target in ass.targets:
             if isinstance(target, ast.Name):
-                self.bind_weak(target.id, typeset) 
+                self.bind_weak(target.id, TypeSet) 
             elif isinstance(target, ast.Attribute):
                 for t in self.visit(target.value):
-                    t.weak_bind(target.value.id, typeset)
+                    t.weak_bind(target.value.id, TypeSet)
             elif isinstance(target, ast.Tuple):
                 size = len(target.elts)
-                target_matrix = [v.split_to(size) for v in typeset if augisinstance(v, SEQ) and v.can_split_to(size)]
+                target_matrix = [v.split_to(size) for v in TypeSet if augisinstance(v, SEQ) and v.can_split_to(size)]
                 assert target_matrix != []
-                target_tuple = [_TypeSet.union_all([v[i] for v in target_matrix]) for i in range(size)]
-                for name, typeset2 in zip(target.elts, target_tuple):
-                    self.bind_weak(name.id, typeset2)
+                target_tuple = [TypeSet.union_all([v[i] for v in target_matrix]) for i in range(size)]
+                for name, TypeSet2 in zip(target.elts, target_tuple):
+                    self.bind_weak(name.id, TypeSet2)
             else:
                 assert False
 
     def visit_all_childs(self, node):
-        returns = _TypeSet({})
+        returns = TypeSet({})
         for n in ast.iter_child_nodes(node):
             res = self.visit(n)
             if isinstance(n, ast.stmt) and res != None:
@@ -93,7 +95,7 @@ class Visitor(ast.NodeVisitor):
         #print(seq)
         seq1 = [c for c in seq if c.has_type_attr(name)]
         #print(seq1)
-        return _TypeSet.union_all({
+        return TypeSet.union_all({
                 c.get_type_attr(name)
                 for c in seq1})
     
@@ -112,13 +114,12 @@ class Visitor(ast.NodeVisitor):
     
     def visit_ClassDef(self, cls):
         #assume for now that methods only calls previous ones
-        #tofix: contaminating global namespace 
         v = Visitor(self)
         returns = v.run(cls)
-        if len(returns) > 0:
+        if returns:
             print('cannot return from class definition')
 
-        c = TYPE.new_instance(cls, v.sym)
+        c = Class(cls.name, v.sym, cls)
         cur = (cls.name, st(c))
         
         builtins = {'float', 'complex', 'int'}
@@ -132,7 +133,7 @@ class Visitor(ast.NodeVisitor):
             keyword.value = self.visit(keyword.value)
         func = value.func
         if isinstance(func, ast.Name):
-            res = _TypeSet.union_all([foo.call(value)
+            res = TypeSet.union_all([foo.call(value)
                                       for foo in self.visit(func)
                                       if foo.ismatch(value)])
         elif isinstance(func, ast.Attribute):
@@ -140,10 +141,10 @@ class Visitor(ast.NodeVisitor):
                                      if foo != None and foo.ismatch(value)]
             if None in collect:
                 print('recursive class definition found')
-            res = _TypeSet.union_all([foo.call(value)
+            res = TypeSet.union_all([foo.call(value)
                                      for foo in self.get_attr_types(func.value, func.attr)
                                      if foo != None and foo.ismatch(value)])
-        assert isinstance(res, _TypeSet)
+        assert isinstance(res, TypeSet)
         return res
             
     def visit_IfExp(self, ifexp):
@@ -179,7 +180,7 @@ class Visitor(ast.NodeVisitor):
         if len(val)==0:
             return
         for i in val:
-            self.bind_weak(stat.target.id, i.typeset())
+            self.bind_weak(stat.target.id, i.TypeSet())
         #TODO : finite repeats where possible
         return self.visit_While(stat)
     
@@ -192,12 +193,12 @@ class Visitor(ast.NodeVisitor):
         return res
 
     def run(self, node):
-        return_values = _TypeSet({})
+        return_values = TypeSet({})
         for n in node.body:
             ret = self.visit(n)
             if ret != None:
                 return_values.update(ret)
-        assert isinstance(return_values, _TypeSet)
+        assert isinstance(return_values, TypeSet)
         #if len(return_values) > 0:
         return return_values
 
@@ -210,48 +211,41 @@ class Visitor(ast.NodeVisitor):
         if name == None:
             print('unknown Num:', ast.dump(value))
             return None
-        res = _TypeSet({i.new_instance('int object', None) for i in self.lookup(name)})
+        res = TypeSet({i.new_instance('int object', None) for i in self.lookup(name)})
         
         assert len(res) > 0
         for i in res:
             i.value = value.n
         return res
     
-    @singletype
     def visit_Str(self, value):
         return STR
     
-    @singletype
     def visit_Bytes(self, value):
         return BYTES
 
-    @singletype
     def visit_Dict(self, value):
         keys=[self.visit(i) for i in value.keys]
         values=[self.visit(i) for i in value.values]
         return DICT(keys,values)
 
-    @singletype    
     def visit_Tuple(self, value):
         return TUPLE([self.visit(i) for i in value.elts])
         
-    @singletype
     def visit_List(self, value):
         return LIST([self.visit(i) for i in value.elts])
 
     def visit_Name(self, value):
         res = self.lookup(value.id)
         if res == None:
-            res = _TypeSet({})
-        assert isinstance(res, _TypeSet)
+            res = TypeSet({})
+        assert isinstance(res, TypeSet)
         return res
     
-    @singletype
     def visit_NameConstant(self, cons):
         c = {None : NONE, False : BOOL, True : BOOL}
         return c[cons.value]
 
-    @singletype
     def visit_ListComp(self, value):
         gen = value.generators[0]
         name = gen.target.id
@@ -259,13 +253,16 @@ class Visitor(ast.NodeVisitor):
         assert val != []
         v = Visitor(self)
         for i in val:
-            v.bind_weak(name, i.typeset())
+            v.bind_weak(name, i.TypeSet())
+        '''
         vall = v.visit(value.elt)
         res = SEQ.fromset(vall)
-        assert not isinstance(res, _TypeSet)
+        assert not isinstance(res, TypeSet)
+        
         return res
-    
-    @singletype
+        '''
+        return ANY
+ 
     def visit_Lambda(self, lmb):
         returns = self.visit(lmb.body) 
         return self.create_func(lmb.args, returns, 'lambda')
@@ -274,15 +271,15 @@ class Visitor(ast.NodeVisitor):
         self.visit(expr.value)
     
     def visit_arguments(self, args):
-        return TArguments(args)
+        return Arguments(args)
         
     def getseq(self, expr):
-        return _TypeSet({v for v in self.visit(expr.iter) if augisinstance(v, SEQ)})
+        return TypeSet({v for v in self.visit(expr.iter) if augisinstance(v, SEQ)})
     
     def create_func(self, args, returns, t):
         args.defaults = [self.visit(i) for i in args.defaults]
         args.kw_defaults = [(self.visit(i) if i != None else i) for i in args.kw_defaults ]
-        return TFunc(args, lambda *x : returns, t)
+        return Function(args, lambda *x : returns, t)
 
 
 if __name__=='__main__':

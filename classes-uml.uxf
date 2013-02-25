@@ -36,7 +36,7 @@ fontfamily=Monospaced //possible: SansSerif,Serif,Monospaced
 Instance
 --
 symtable : SymTable
-mytype : TypeSet
+mytype : InstanceInterface
  
 --
 def call(args):
@@ -109,8 +109,8 @@ def call(args):
   <element>
     <type>com.umlet.element.Class</type>
     <coordinates>
-      <x>440</x>
-      <y>40</y>
+      <x>810</x>
+      <y>160</y>
       <w>160</w>
       <h>50</h>
     </coordinates>
@@ -122,14 +122,14 @@ def call(args):
   <element>
     <type>com.umlet.element.Class</type>
     <coordinates>
-      <x>610</x>
-      <y>40</y>
-      <w>180</w>
+      <x>820</x>
+      <y>250</y>
+      <w>240</w>
       <h>50</h>
     </coordinates>
     <panel_attributes>SymTable
 --
-dict : str -&gt; TypeSet</panel_attributes>
+dict : str -&gt; InstanceInterface</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
@@ -255,5 +255,38 @@ mysuper = {target 'object class'}
 formal parameter list
 should match actual parameter list</panel_attributes>
     <additional_attributes/>
+  </element>
+  <element>
+    <type>com.umlet.element.Class</type>
+    <coordinates>
+      <x>690</x>
+      <y>70</y>
+      <w>200</w>
+      <h>30</h>
+    </coordinates>
+    <panel_attributes>InstanceInterface</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <type>com.umlet.element.Relation</type>
+    <coordinates>
+      <x>680</x>
+      <y>70</y>
+      <w>50</w>
+      <h>110</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;&lt;-</panel_attributes>
+    <additional_attributes>30;30;30;90</additional_attributes>
+  </element>
+  <element>
+    <type>com.umlet.element.Relation</type>
+    <coordinates>
+      <x>830</x>
+      <y>70</y>
+      <w>50</w>
+      <h>110</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;&lt;-</panel_attributes>
+    <additional_attributes>30;30;30;90</additional_attributes>
   </element>
 </diagram>
