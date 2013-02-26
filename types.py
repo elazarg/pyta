@@ -143,7 +143,10 @@ class TypeSet(InstanceInterface):
         return len(self.types) > 0
 
     def tostr(self):
-        return 'T{0}'.format(', '.join([t.tostr() for t in self.types]))
+        if self:
+            return 'T{0}'.format(', '.join([t.tostr() for t in self.types]))
+        else:
+            return '-'
     
 from symtable import SymTable
     
@@ -175,11 +178,19 @@ class Instance(InstanceInterface):
 
     
 class Specific(Instance):
+    pool={}
     def __init__(self, mytype, value):
         '@value is THE ONLY place where source object is in the target type-system'
         Instance.__init__(self, mytype)
         self.value = value
-
+        Specific.pool[(mytype, value)] = self
+         
+    @staticmethod
+    def factory(mytype, value):
+        if (mytype, value) in Specific.pool:
+            return Specific.pool[(mytype, value)]
+        return Specific(mytype, value)
+                
     def get_unspecific(self):
         return self.get_type().instance
 
@@ -233,12 +244,15 @@ class Type(Class):
   
 TYPE = Type()
 
-BOOL = Class('bool')
 INT = Class('int')
 FLOAT = Class('float')
 COMPLEX = Class('complex')
 
-NONE = Specific(Class('NoneType'), None)
+BOOL = Class('bool')
+TRUE = Specific.factory(BOOL, True)
+FALSE = Specific.factory(BOOL, False)
+
+NONE = Specific.factory(Class('NoneType'), None)
 
 BYTES = STR = TUPLE = LIST = SEQ = DICT = ANY
 

@@ -27,8 +27,8 @@ fontfamily=Monospaced //possible: SansSerif,Serif,Monospaced
   <element>
     <type>com.umlet.element.Class</type>
     <coordinates>
-      <x>460</x>
-      <y>160</y>
+      <x>580</x>
+      <y>170</y>
       <w>320</w>
       <h>110</h>
     </coordinates>
@@ -46,8 +46,8 @@ def call(args):
   <element>
     <type>com.umlet.element.Class</type>
     <coordinates>
-      <x>550</x>
-      <y>330</y>
+      <x>670</x>
+      <y>340</y>
       <w>300</w>
       <h>120</h>
     </coordinates>
@@ -67,8 +67,8 @@ def call(args):
   <element>
     <type>com.umlet.element.Class</type>
     <coordinates>
-      <x>60</x>
-      <y>330</y>
+      <x>180</x>
+      <y>340</y>
       <w>450</w>
       <h>120</h>
     </coordinates>
@@ -87,8 +87,8 @@ def call(args):
   <element>
     <type>com.umlet.element.Relation</type>
     <coordinates>
-      <x>560</x>
-      <y>240</y>
+      <x>680</x>
+      <y>250</y>
       <w>50</w>
       <h>110</h>
     </coordinates>
@@ -98,8 +98,8 @@ def call(args):
   <element>
     <type>com.umlet.element.Relation</type>
     <coordinates>
-      <x>450</x>
-      <y>240</y>
+      <x>570</x>
+      <y>250</y>
       <w>50</w>
       <h>110</h>
     </coordinates>
@@ -109,8 +109,8 @@ def call(args):
   <element>
     <type>com.umlet.element.Class</type>
     <coordinates>
-      <x>810</x>
-      <y>160</y>
+      <x>930</x>
+      <y>170</y>
       <w>160</w>
       <h>50</h>
     </coordinates>
@@ -122,8 +122,8 @@ def call(args):
   <element>
     <type>com.umlet.element.Class</type>
     <coordinates>
-      <x>820</x>
-      <y>250</y>
+      <x>940</x>
+      <y>260</y>
       <w>240</w>
       <h>50</h>
     </coordinates>
@@ -135,8 +135,8 @@ dict : str -&gt; InstanceInterface</panel_attributes>
   <element>
     <type>com.umlet.element.Class</type>
     <coordinates>
-      <x>150</x>
-      <y>170</y>
+      <x>270</x>
+      <y>180</y>
       <w>280</w>
       <h>110</h>
     </coordinates>
@@ -152,8 +152,8 @@ mysuper = {target 'object class'}
   <element>
     <type>com.umlet.element.Relation</type>
     <coordinates>
-      <x>230</x>
-      <y>250</y>
+      <x>350</x>
+      <y>260</y>
       <w>170</w>
       <h>100</h>
     </coordinates>
@@ -164,8 +164,8 @@ mysuper = {target 'object class'}
   <element>
     <type>com.umlet.element.Class</type>
     <coordinates>
-      <x>660</x>
-      <y>520</y>
+      <x>780</x>
+      <y>530</y>
       <w>220</w>
       <h>50</h>
     </coordinates>
@@ -177,8 +177,8 @@ mysuper = {target 'object class'}
   <element>
     <type>com.umlet.element.Relation</type>
     <coordinates>
-      <x>690</x>
-      <y>420</y>
+      <x>810</x>
+      <y>430</y>
       <w>170</w>
       <h>120</h>
     </coordinates>
@@ -189,8 +189,8 @@ mysuper = {target 'object class'}
   <element>
     <type>com.umlet.element.Class</type>
     <coordinates>
-      <x>340</x>
-      <y>500</y>
+      <x>460</x>
+      <y>510</y>
       <w>290</w>
       <h>80</h>
     </coordinates>
@@ -205,8 +205,8 @@ mysuper = {target 'num abs class'}
   <element>
     <type>com.umlet.element.Relation</type>
     <coordinates>
-      <x>340</x>
-      <y>420</y>
+      <x>460</x>
+      <y>430</y>
       <w>170</w>
       <h>100</h>
     </coordinates>
@@ -217,8 +217,8 @@ mysuper = {target 'num abs class'}
   <element>
     <type>com.umlet.element.Class</type>
     <coordinates>
-      <x>30</x>
-      <y>500</y>
+      <x>150</x>
+      <y>510</y>
       <w>280</w>
       <h>90</h>
     </coordinates>
@@ -233,8 +233,8 @@ mysuper = {target 'object class'}
   <element>
     <type>com.umlet.element.Relation</type>
     <coordinates>
-      <x>110</x>
-      <y>420</y>
+      <x>230</x>
+      <y>430</y>
       <w>170</w>
       <h>100</h>
     </coordinates>
@@ -245,8 +245,8 @@ mysuper = {target 'object class'}
   <element>
     <type>com.umlet.element.Class</type>
     <coordinates>
-      <x>40</x>
-      <y>20</y>
+      <x>160</x>
+      <y>30</y>
       <w>280</w>
       <h>70</h>
     </coordinates>
@@ -259,9 +259,9 @@ should match actual parameter list</panel_attributes>
   <element>
     <type>com.umlet.element.Class</type>
     <coordinates>
-      <x>690</x>
-      <y>70</y>
-      <w>200</w>
+      <x>810</x>
+      <y>80</y>
+      <w>160</w>
       <h>30</h>
     </coordinates>
     <panel_attributes>InstanceInterface</panel_attributes>
@@ -270,8 +270,8 @@ should match actual parameter list</panel_attributes>
   <element>
     <type>com.umlet.element.Relation</type>
     <coordinates>
-      <x>680</x>
-      <y>70</y>
+      <x>790</x>
+      <y>80</y>
       <w>50</w>
       <h>110</h>
     </coordinates>
@@ -281,12 +281,34 @@ should match actual parameter list</panel_attributes>
   <element>
     <type>com.umlet.element.Relation</type>
     <coordinates>
-      <x>830</x>
-      <y>70</y>
+      <x>930</x>
+      <y>80</y>
       <w>50</w>
       <h>110</h>
     </coordinates>
     <panel_attributes>lt=&lt;&lt;-</panel_attributes>
     <additional_attributes>30;30;30;90</additional_attributes>
+  </element>
+  <element>
+    <type>com.umlet.element.Relation</type>
+    <coordinates>
+      <x>940</x>
+      <y>60</y>
+      <w>80</w>
+      <h>50</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;&lt;-</panel_attributes>
+    <additional_attributes>30;30;60;30</additional_attributes>
+  </element>
+  <element>
+    <type>com.umlet.element.Class</type>
+    <coordinates>
+      <x>1000</x>
+      <y>80</y>
+      <w>80</w>
+      <h>30</h>
+    </coordinates>
+    <panel_attributes>AnyClass</panel_attributes>
+    <additional_attributes/>
   </element>
 </diagram>

@@ -144,11 +144,12 @@ class SourceGenerator(NodeVisitor):
     def visit_NameConstant(self, node):
         self.write('{0}'.format(node.value))
     
-    def sigwrite(self, name, args, keywords, starargs, kwargs):
+    def sigwrite(self, name, oargs, keywords, starargs, kwargs):
+        args =  oargs[:]
         args += [ (None, k.arg, '=', k.value) for k in keywords]
         args += [ ('*', starargs, None, None), ('**', kwargs, None, None) ]
         self.write(name)
-        self.write(*args, sep=', ', **enclose('()'))
+        self.write(*args, **enclose('(, )'))
         
     def visit_arguments(self, node):
         rearg = [i.arg for i in node.args]
@@ -160,7 +161,7 @@ class SourceGenerator(NodeVisitor):
         args += [(None, k, '=', v) for k, v in zip(node.kwonlyargs, node.kw_defaults)]
         args += [('**', node.kwarg, None, None)]
         
-        return self.write(*args, sep=', ', **enclose('()'))
+        return self.write(*args, sep=', ')
     
     def decorators(self, node):
         self.write(*node.decorator_list, prepend='@', endeach='\n', sep='')        
@@ -189,7 +190,7 @@ class SourceGenerator(NodeVisitor):
 
     def visit_FunctionDef(self, node):
         self.decorators(node)
-        self.write('def ', node.name, node.args, node.body, sep='', end='\n')
+        self.write('def ', node.name, '(', node.args, ')', node.body, sep='', end='\n')
         
     def visit_ClassDef(self, node):
         self.decorators(node)
@@ -315,7 +316,7 @@ class SourceGenerator(NodeVisitor):
         self.write(*row, start='(', end=')')
     
     def visit_UnaryOp(self, node):
-        self.write(UNARYOP_SYMBOLS[type(node.op)], node.operand, start='(', end=')', sep='')
+        self.write(UNARYOP_SYMBOLS[type(node.op)], node.operand, sep='', **enclose('()'))
     
     def visit_Subscript(self, node):
         self.write(node.value)
@@ -368,7 +369,8 @@ class SourceGenerator(NodeVisitor):
 
 
 if __name__ == '__main__':
-    fp = parse(open('codegen.py').read())
+    fp = parse('def foo(x, y=5, *q, z=8, **g): return x')
+    #fp = parse(open('codegen.py').read())
 
     # print(dump(fp))
     st = to_source(fp)

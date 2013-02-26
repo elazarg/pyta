@@ -23,7 +23,7 @@ class Arguments():
         self.names = set(rearg + [self.vararg] + self.kwonlyargs + [self.kwarg])  
         
     def with_bind(self, t):
-        return TArguments(self.arg, t)
+        return Arguments(self.arg, t)
         
     def ismatch(self, actual):
         bind = {}
@@ -55,21 +55,24 @@ class Arguments():
             return False            
         return True
 
-    def __repr__(self):
+    def tostr(self):
         pos = ', '.join(self.pos)
-        defs = ', '.join('{0}={1}'.format(k,v) for k,v in self.defs)
+        defs = ', '.join('{0}={1}'.format(k,v.tostr()) for k,v in self.defs)
         varargs = None
         if self.vararg:
             varargs = '*' + self.vararg
             if self.varargannotation:
                 varargs += ':' + repr(self.varargannotation)
-        kws = ', '.join(('{0}={1}'.format(k, v) if v else k) for k, v in zip(self.kwonlyargs, self.kw_defaults))
+        kws = ', '.join(('{0}={1}'.format(k, v.tostr()) if v else k) for k, v in zip(self.kwonlyargs, self.kw_defaults))
         kwargs = '**' + self.kwarg if self.kwarg else None
         
-        return '({0})'.format( ', '.join(str(i) for i in [pos, defs, varargs, kws, kwargs, self.bind] if i) )
+        return '({0})'.format( ', '.join(i if isinstance(i, str) else i.tostr() for i in [pos, defs, varargs, kws, kwargs, self.bind] if i) )
 
 FUNCTION_CLASS = Class('function')
-
+'''
+should make distinction between types of variables in general,
+and return type of some specific execution place
+'''
 class Function(Instance):
     def __init__(self, args, typefunc, t, bind = None):
         # assert isinstance(typefunc, (TypeSet, type(None)))
@@ -85,7 +88,7 @@ class Function(Instance):
     def tostr(self):
         from ast import Call, Name, Load
         c = Call(func=Name(id='x', ctx=Load()), args=[TypeSet({})], keywords=[], starargs=None, kwargs=None)
-        return self.t + ' {0} -> {1}'.format(self.args, self.typefunc(c).tostr())
+        return self.t + ' {0} -> {1}'.format(self.args.tostr(), self.typefunc(c).tostr())
 
     def bind_parameter(self, bind):
         return Function(self.orig_args, self.typefunc, self.t, bind)
@@ -94,7 +97,8 @@ class Function(Instance):
         res = self.args.ismatch(actual_args)
         if not res:
             import ast
-            print(ast.dump(actual_args), 'does not match', repr(self.args))
+            print(ast.dump(actual_args))
+            print('does not match', repr(self.args))
         return res
         
     def call(self, actual_args):

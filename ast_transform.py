@@ -51,7 +51,23 @@ def mutator(method):
     return wr
 
 
+flow_stoppers = (Return, Break, Continue) 
+
 class Transformer(NodeTransformer):
+
+    def take_upto(self, body, stopper=lambda x: isinstance(x, flow_stoppers), ifempty=Pass()):
+        def upto():
+            for stmt in body:
+                res = self.visit(stmt)
+                if res is not None:
+                    yield res
+                if stopper(stmt):
+                    return
+        res = list(upto())
+        if ifempty is not None and res == []:
+            res = [ifempty]
+        body[:]=res
+
     def __init__(self):
         super().__init__()
         self.changed = True
@@ -96,7 +112,53 @@ class Transformer(NodeTransformer):
         
         return IfExp(test=call, body=attr, orelse=rattr)
 
+    @mutator
+    def visit_Return(self, ret):
+        if ret.value is None:
+            ret.value = NameConstant(value=None)
+        return ret
 
+    @mutator
+    def visit_FunctionDef(self, node):
+        self.take_upto(node.body, ifempty=Return(NameConstant(None)))
+        return node
+
+    @mutator
+    def visit_body(self, node):
+        self.take_upto(node.body)
+        return node
+    
+    visit_ClassDef = visit_body
+    visit_ExceptHandler = visit_body
+    
+    @mutator
+    def visit_body_orelse(self, node):
+        self.take_upto(node.body)
+        self.take_upto(node.orelse, ifempty=None)
+        return node
+    
+    visit_If = visit_body_orelse
+    visit_While = visit_body_orelse
+    visit_For = visit_body_orelse
+    visit_With = visit_body_orelse
+      
+    @mutator
+    def visit_Try(self, node):
+        self.visit_body_orelse(node)
+        
+        stopper = lambda x: isinstance(x.type, (type(None), Ellipsis))
+        ifempty = None if node.finalbody != [] else Pass() 
+        self.take_upto(node.handlers, stopper, ifempty)
+        
+        if node.finalbody:
+            self.take_upto(node.finalbody)
+        return node
+      
+    @mutator
+    def visit_Pass(self, node):
+        return None
+    
+    
 from codegen import to_source
 if __name__ == '__main__':
     x = Transformer()

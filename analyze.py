@@ -24,48 +24,40 @@ TODO:
 * some DSL
 * basic framework
 '''
-import visitor, ast
-
-def readfile(filename, module = None):
-    x = ast.parse(open(filename).read())
-    from ast_transform import Transformer
-    Transformer().visit(x)
-    return x
+import visitor, ast, codegen
+from visitor import analyze_file
 
 def pretest():  
     basedir = 'test/'
-    files = [#'primitives.py',
-             #'assign_simple.py',
-             # 'assign_multi.py',
-             #'functions_and_calls.py',
-              'classes_simple.py'
+    files = ['primitives',
+             'assign_simple',
+             # 'assign_multi',
+             'functions_and_calls',
+             # 'classes_simple'
               ]                 
     for file in files:
         print('test :', file)
-        res = visitor.Visitor()
-        res.visit(readfile(basedir + file))
-        res.print()
+        analyze_file(file, [basedir]).print()
         print('test :', file, 'done')
     print('pretest done')
-    return res
  
 def prelude():  
     g = visitor.Visitor()
     basedir = 'database/'
-    files = ['object.py', 'int.py', 'float.py', 'complex.py',
-             #'list.py',
-              'functions.py']                 
+    files = ['object', 'int', 'float', 'complex',
+             #'list',
+              'functions']                 
     for file in files:
-        g.visit(readfile(basedir + file))
+        g.visit(analyze_file(basedir + file))
     g.print()
     return g
 
 def main():
-    r = pretest()
+    pretest()
     return
     g = prelude()
     v = visitor.Visitor(g)
-    r = readfile('test/parsed.py')
+    r = analyze_file('test/parsed.py')
     v.visit(r)
     v.print()
             

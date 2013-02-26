@@ -1,7 +1,7 @@
 #!/sbin/python3
 import ast 
 from types import TypeSet, Class, Specific, ANY, st, join, joinall
-from types import BOOL, INT, FLOAT, NONE, COMPLEX
+from types import BOOL, INT, FLOAT, NONE, COMPLEX, TRUE, FALSE
 from types import BYTES, STR, TUPLE, LIST, SEQ, DICT
 from definitions import Function, Arguments
 from symtable import SymTable
@@ -16,6 +16,27 @@ def visit_result(method):
         assert issubclass(type(res), ast.AST)
         return self.visit(res)
     return wrapped
+
+def analyze_file(filename, path=()):
+    import pyclbr
+    d = pyclbr.readmodule_ex(filename, path)
+    stub = lambda k, v : Class(v.name) if isinstance(v, pyclbr.Class) else Class('Function').instance
+    sym = SymTable({k:stub(k, v) for k, v in d.items()})
+     
+    x = ast.parse(open(path[0] + filename + '.py').read())
+    
+    from ast_transform import Transformer
+    #print(codegen.to_source(x))
+    Transformer().visit(x)
+    
+    import codegen
+    print(codegen.to_source(x))
+    
+    res = Visitor()
+    #res.sym = sym
+    res.visit(x)
+    return res
+
 
 class Visitor(ast.NodeVisitor):
     
@@ -43,15 +64,12 @@ class Visitor(ast.NodeVisitor):
         '''
         return res
     
-    def bind_weak(self, var_id, TypeSet):
-        return self.sym.bind(var_id, TypeSet)
+    def bind_weak(self, var_id, anInstance):        
+        self.sym.bind(var_id, anInstance)
     
     def print(self):
         self.sym.print()
     
-    def visit_AugAssign(self, ass):
-        assert False
-        
     def visit_Assign(self, ass):
         val = self.visit(ass.value)
         for target in ass.targets:
@@ -96,17 +114,13 @@ class Visitor(ast.NodeVisitor):
     def visit_ClassDef(self, cls):
         #assume for now that methods only calls previous ones
         v = Visitor(self)
-        returns = v.run(cls)
-        if returns:
-            print('cannot return from class definition')
-
+        v.run(cls)
         c = Class(cls.name, v.sym)
-        cur = (cls.name, st(c))
         
         builtins = {'float', 'complex', 'int'}
         if cls.name in builtins:
-            self.lookup(cls.name).readjust(cur[1])
-        self.bind_weak(*cur)
+            self.lookup(cls.name).readjust(cls.name)
+        self.bind_weak(cls.name, c)
             
     def visit_Call(self, value):
         value.args = [self.visit(i) for i in value.args]
@@ -132,16 +146,15 @@ class Visitor(ast.NodeVisitor):
     def visit_If(self, stat):
         return self.visit_all_childs(stat)
     
-    def go_round(self, node):
-        #TODO : better comparison
-        old_sym = repr(self.sym)
-        ret = self.visit_all_childs(node)
-        new_sym = repr(self.sym)
-        return ret, old_sym == new_sym
-    
     def visit_While(self, stat):
+        def go_round(node):
+            #TODO : better comparison
+            old_sym = repr(self.sym)
+            ret = self.visit_all_childs(node)
+            new_sym = repr(self.sym)
+            return ret, old_sym == new_sym
         while True:
-            ret, done = self.go_round(stat)
+            ret, done = go_round(stat)
             if done:
                 return ret
     
@@ -169,7 +182,7 @@ class Visitor(ast.NodeVisitor):
         if name == None:
             print('unknown Num:', ast.dump(value))
             return None
-        return Specific(self.lookup(name), value.n)
+        return Specific.factory(self.lookup(name), value.n)
     
     def visit_Str(self, value):
         return STR
@@ -192,7 +205,7 @@ class Visitor(ast.NodeVisitor):
         return self.lookup(value.id)
     
     def visit_NameConstant(self, cons):
-        c = {None : NONE, False : BOOL, True : BOOL}
+        c = {None : NONE, False : FALSE, True : TRUE}
         return c[cons.value]
 
     def visit_ListComp(self, value):
