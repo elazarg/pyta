@@ -54,7 +54,7 @@ UNARYOP_SYMBOLS = {
 
 def enclose(st):
     d = {'start':st[0], 'end':st[-1]}
-    if len(st) == 3:
+    if len(st) >= 3:
         d['sep'] = st[1:-1]
     return d
 
@@ -78,7 +78,6 @@ def to_source(node, indent_with=' ' * 4, add_line_information=False):
     """
     generator = SourceGenerator(indent_with, add_line_information)
     generator.visit(node)
-    # for i in generator.result:        print(i, end='')    print()
     return ''.join(generator.result)[2:]
 
 def combine(ls1, ls2):
@@ -100,15 +99,22 @@ class SourceGenerator(NodeVisitor):
     
     def write(self, *xlist, start='', end='', sep=' ', prepend='', endeach=''):
         def app_or_line(c):
+            self.result.append(c)
             if c == '\n':
-                self.result.append('\n' + self.indent_with * self.indentation)
-            else:
-                self.result.append(c)
+                self.result.append(self.indent_with * self.indentation)
         putsep = False 
         app_or_line(start)
         for x in xlist:
-            if not x or (isinstance(x, tuple) and len(x) == 4 and not x[1]):
+            if x is None or x is []:
                 continue
+            
+            if isinstance(x, tuple):
+                assert 2 <= len(x) <= 4
+                if len(x) == 2: x += (None, None)
+                if len(x) == 3: x = (None,) + x
+                pre, key, join, val = x
+                if key is None:
+                    continue
             
             if putsep and not isinstance(x, list):
                 app_or_line(sep)
@@ -124,8 +130,7 @@ class SourceGenerator(NodeVisitor):
                 self.indentation -= 1
                 putsep = False
                 continue
-            elif isinstance(x, tuple) and len(x) == 4:
-                pre, key, join, val = x
+            elif isinstance(x, tuple):
                 self.write(pre, key, join if val else None, val, sep='')
             else:
                 self.result.append(x)
@@ -135,19 +140,19 @@ class SourceGenerator(NodeVisitor):
     
     def body_or_else(self, node):
         self.write(node.body)
-        self.write(('else', node.orelse, None, None), prepend='\n')
+        if len(node.orelse) > 0:
+            self.write(('else', node.orelse), prepend='\n')
 
     def visit_arg(self, node):
-        # XXX: python3.0
         self.write(node.arg, node.annotation, sep=':')
     
     def visit_NameConstant(self, node):
         self.write('{0}'.format(node.value))
     
     def sigwrite(self, name, oargs, keywords, starargs, kwargs):
-        args =  oargs[:]
+        args = oargs[:]
         args += [ (None, k.arg, '=', k.value) for k in keywords]
-        args += [ ('*', starargs, None, None), ('**', kwargs, None, None) ]
+        args += [ ('*', starargs), ('**', kwargs) ]
         self.write(name)
         self.write(*args, **enclose('(, )'))
         
@@ -156,10 +161,10 @@ class SourceGenerator(NodeVisitor):
         size = len(node.defaults)
         
         args = rearg[:-size] if size > 0 else rearg
-        args += [(None, k, '=', v) for k, v in zip(rearg[-size:] , node.defaults) ]
+        args += [(k, '=', v) for k, v in zip(rearg[-size:] , node.defaults) ]
         args += [('*', node.vararg, ':', node.varargannotation)]
-        args += [(None, k, '=', v) for k, v in zip(node.kwonlyargs, node.kw_defaults)]
-        args += [('**', node.kwarg, None, None)]
+        args += [(k, '=', v) for k, v in zip(node.kwonlyargs, node.kw_defaults)]
+        args += [('**', node.kwarg, ':', node.kwargannotation)]
         
         return self.write(*args, sep=', ')
     
@@ -190,11 +195,13 @@ class SourceGenerator(NodeVisitor):
 
     def visit_FunctionDef(self, node):
         self.decorators(node)
-        self.write('def ', node.name, '(', node.args, ')', node.body, sep='', end='\n')
+        self.write('def ', node.name, '(', node.args, ')', ('->', node.returns), node.body, sep='', end='\n')
         
     def visit_ClassDef(self, node):
         self.decorators(node)
         self.write('class ')
+        if node.bases == []: 
+            node.bases = [Name(id='object', ctx=Load())]
         self.sigwrite(node.name, node.bases, node.keywords, node.starargs, node.kwargs)
         self.write(node.body, end='\n')
 
@@ -202,7 +209,8 @@ class SourceGenerator(NodeVisitor):
         self.write('if ', node.test, node.body, sep='')
         orelse = node.orelse
         if len(orelse) == 1 and isinstance(orelse[0], If):
-            self.write('elif', orelse[0].test, orelse[0].body, start='\n')      
+            self.write('el', start='\n')
+            self.write(orelse[0])      
         elif len(orelse) > 0:
             self.write('else', orelse, start='\n')
         
@@ -215,8 +223,12 @@ class SourceGenerator(NodeVisitor):
         self.body_or_else(node)
 
     def visit_With(self, node):
-        self.write('with', node.context_expr, 'as', *node.optional_vars)
+        self.write('with ')
+        self.write(*node.items, sep=', ')
         self.write(node.body)
+                   
+    def visit_withitem(self, node):
+        self.write(node.context_expr, 'as', node.optional_vars)
 
     def visit_Pass(self, node):
         self.write('pass')
@@ -224,19 +236,12 @@ class SourceGenerator(NodeVisitor):
     def visit_Delete(self, node:Delete):
         self.write(*node.targets, sep=',', start='del', prepend=' ')
     
-    def visit_TryExcept(self, node):
-        self.write('try', node.body, *node.handlers)
-
     def visit_ExceptHandler(self, node):
-        self.write('except', node.type, (' as ', node.name, None, None), node.body)
+        self.write('except', node.type, (' as ', node.name), node.body)
         
     def visit_Try(self, node):
-        # python 3.4
         self.write('try', node.body)
-        self.write(*node.handlers + [('finally', node.finalbody, None, None)], prepend='\n')
-        
-    def visit_TryFinally(self, node):
-        self.write('try', node.body, 'finally', node.finalbody)
+        self.write(*node.handlers + [('finally', node.finalbody)], prepend='\n')
 
     def write_list(self, start, args):
         self.write(*args, start=start, sep=',', prepend=' ')
@@ -260,15 +265,8 @@ class SourceGenerator(NodeVisitor):
         self.write('continue')
 
     def visit_Raise(self, node):
-        # XXX: Python 2.6 / 3.0 compatibility
-        self.write('raise')
-        if hasattr(node, 'exc') and node.exc is not None:
-            self.write(node.exc, 'from', node.cause, start=' ')
-        elif hasattr(node, 'type') and node.type is not None:
-            self.write(node.type, node.inst, node.tback, sep=', ')
+        self.write('raise', node.exc, ('from ', node.cause))
 
-    # Expressions
-    
     def visit_Attribute(self, node):
         self.write(node.value, '.', node.attr, sep='')
     
@@ -323,7 +321,7 @@ class SourceGenerator(NodeVisitor):
         self.write(node.slice, **enclose('[]'))
     
     def visit_Slice(self, node):
-        self.write(node.lower, ':', node.upper, (':', node.step, None, None), sep='')
+        self.write(node.lower, ':', node.upper, (':', node.step), sep='')
     
     def visit_ExtSlice(self, node):
         self.write(*node.dims, sep=', ')
@@ -350,15 +348,13 @@ class SourceGenerator(NodeVisitor):
         self.generator_visit(node, '{', '}')
     
     def visit_DictComp(self, node):
-        self.write((None, node.key, ':', node.value), *node.generators, **enclose('{}'))
+        self.write((node.key, ':', node.value), *node.generators, **enclose('{}'))
 
     def visit_IfExp(self, node):
         self.write(node.body, 'if', node.test, 'else', node.orelse, **enclose('()'))
 
     def visit_Starred(self, node):
         self.write('*', node.value, sep='')
-
-    # Helper Nodes
 
     def visit_alias(self, node):
         self.write(node.name, node.asname, sep=' as ')
@@ -369,9 +365,6 @@ class SourceGenerator(NodeVisitor):
 
 
 if __name__ == '__main__':
-    fp = parse('def foo(x, y=5, *q, z=8, **g): return x')
-    #fp = parse(open('codegen.py').read())
-
-    # print(dump(fp))
+    fp = parse(open('codegen.py').read())
     st = to_source(fp)
     print(st)

@@ -1,78 +1,61 @@
 #!/sbin/python3
 import ast 
 from types import TypeSet, Class, Specific, ANY, st, join, joinall
-from types import BOOL, INT, FLOAT, NONE, COMPLEX, TRUE, FALSE
+from types import BOOL, INT, FLOAT, NONE, COMPLEX, TRUE, FALSE, TYPE
 from types import BYTES, STR, TUPLE, LIST, SEQ, DICT
 from definitions import Function, Arguments
 from symtable import SymTable
+from bindfind import find_bindings
+from ast import NodeVisitor
 
 def augisinstance(s, t): 
     return s==ANY or isinstance(s,t)
-
-def visit_result(method):
-    def wrapped(self, args):
-        #ast.dump(args)
-        res = method(self, args)
-        assert issubclass(type(res), ast.AST)
-        return self.visit(res)
-    return wrapped
-
-def analyze_file(filename, path=()):
-    import pyclbr
-    d = pyclbr.readmodule_ex(filename, path)
-    stub = lambda k, v : Class(v.name) if isinstance(v, pyclbr.Class) else Class('Function').instance
-    sym = SymTable({k:stub(k, v) for k, v in d.items()})
-     
-    x = ast.parse(open(path[0] + filename + '.py').read())
     
-    from ast_transform import Transformer
-    #print(codegen.to_source(x))
-    Transformer().visit(x)
-    
-    import codegen
-    print(codegen.to_source(x))
-    
-    res = Visitor()
-    #res.sym = sym
-    res.visit(x)
-    return res
-
-
-class Visitor(ast.NodeVisitor):
-    
+class Visitor(NodeVisitor):
+   
     def generic_visit(self, node):
         for n in ast.iter_child_nodes(node):
             self.visit(n)
     
-    def __init__(self, parent = None):
-        if parent != None:
-            self.sym = SymTable(parent.sym)
-        else:
-            self.sym = SymTable()
+    def __init__(self, parent):
+        self.sym = SymTable()
         self.parent = parent
-        
-        if parent == None:
-            d = {'int' : INT, 'bool' : BOOL, 'float' : FLOAT, 'complex' : COMPLEX}
-            for k, v in d.items(): 
-                self.bind_weak(k, v)
+        self.globals = parent.globals
     
+    def run(self, node):
+        self.bindings = find_bindings(node)
+        return joinall(self.visit(n) for n in node.body)
+
+    def visit_Module(self, node):
+        assert False
+   
+    def find_namespace(self, name):
+        if name in self.bindings.globals:
+            #there is global declaration
+            return self.globals
+        if name in self.bindings.nonlocals:
+            #there is nonlocal declaration
+            res = self.parent.find_namespace(name)
+            if res == self.globals:
+                #error - nonlocals cannot be globals
+                return TypeSet({})
+        if name in self.bindings.locals:
+            #there is binding in local body, and no special declaration
+            return self.sym
+        return self.parent.find_namespace(name)    
+       
     def lookup(self, name):
-        res = self.sym.get_var(name)
-        '''
-        if self.parent and res == None:
-            return self.parent.lookup(name)
-        '''
-        return res
-    
-    def bind_weak(self, var_id, anInstance):        
-        self.sym.bind(var_id, anInstance)
+        return self.find_namespace(name).get_var(name)
+     
+    def bind_weak(self, name, anInstance):
+        return self.find_namespace(name).bind(name, anInstance)
     
     def print(self):
         self.sym.print()
     
-    def visit_Assign(self, ass):
-        val = self.visit(ass.value)
-        for target in ass.targets:
+    def visit_Assign(self, node):
+        val = self.visit(node.value)
+        for target in node.targets:
             if isinstance(target, ast.Name):
                 self.bind_weak(target.id, val) 
             elif isinstance(target, ast.Attribute):
@@ -103,24 +86,29 @@ class Visitor(ast.NodeVisitor):
 
     def visit_FunctionDef(self, func):
         #TODO : add type variables
-        #TODO : support self-references through symtable
         v = Visitor(self)
         returns = v.run(func)
         if not returns:
             returns = NONE
-        res = self.create_func(func.args, returns, 'func')
-        self.bind_weak(func.name, st(res))
+        res = self.create_func(func.args, returns, func.name)
+        if func.name in self.presym:
+            'Yack. and probably completely wrong: memberwise-assignment'
+            self.lookup(func.name).__dict__ = res.__dict__
+        else:        
+            self.bind_weak(func.name, st(res))
     
     def visit_ClassDef(self, cls):
         #assume for now that methods only calls previous ones
-        v = Visitor(self)
+        #self.bind_weak(cls.name, Class('@temp'))
+        v = Visitor(self, name=cls.name)
         v.run(cls)
         c = Class(cls.name, v.sym)
-        
         builtins = {'float', 'complex', 'int'}
-        if cls.name in builtins:
-            self.lookup(cls.name).readjust(cls.name)
-        self.bind_weak(cls.name, c)
+        if cls.name in self.presym or cls.name in builtins:
+            'Yack. and probably completely wrong: memberwise-assignment'
+            self.lookup(cls.name).__dict__ = c.__dict__
+        else:
+            self.bind_weak(cls.name, c)
             
     def visit_Call(self, value):
         value.args = [self.visit(i) for i in value.args]
@@ -170,12 +158,6 @@ class Visitor(ast.NodeVisitor):
     def visit_Return(self, ret):
         return NONE if ret.value == None else self.visit(ret.value)
 
-    def run(self, node):
-        return joinall(self.visit(n) for n in node.body)
-
-    def visit_Module(self, node):
-        return self.run(node)
-      
     def visit_Num(self, value):
         types = { int : 'int', float : 'float', complex : 'complex' }
         name = types.get(type(value.n))
@@ -227,7 +209,7 @@ class Visitor(ast.NodeVisitor):
  
     def visit_Lambda(self, lmb):
         returns = self.visit(lmb.body) 
-        return self.create_func(lmb.args, returns, 'lambda')
+        return self.create_func(lmb.args, returns, '<lambda>')
 
     def visit_Expr(self, expr):
         self.visit(expr.value)
@@ -238,12 +220,46 @@ class Visitor(ast.NodeVisitor):
     def getseq(self, expr):
         return TypeSet({v for v in self.visit(expr.iter) if augisinstance(v, SEQ)})
     
-    def create_func(self, args, returns, t):
+    def create_func(self, args, returns, name):
         args.defaults = [self.visit(i) for i in args.defaults]
         args.kw_defaults = [(self.visit(i) if i != None else i) for i in args.kw_defaults ]
-        return Function(args, lambda *x : returns, t)
+        return Function(args, lambda *x : returns, name)
 
 
+class ModuleVisitor(Visitor):
+    def __init__(self):
+        self.globals = self.sym = SymTable()
+        d = {'int' : INT, 'bool' : BOOL, 'float' : FLOAT, 'complex' : COMPLEX, 'type' : TYPE}
+        for k, v in d.items(): 
+            self.bind_weak(k, v)
+    
+    def find_namespace(self, name):
+        return self.sym    
+
+    def visit_Module(self, node):
+        return self.run(node)
+    
+def analyze_file(filename, path=()):
+    '''
+    import pyclbr
+    d = pyclbr.readmodule_ex(filename, path)
+    stub = lambda k, v : Class('@temp') if isinstance(v, pyclbr.Class) else Function.get_generic()
+    sym = {k:stub(k, v) for k, v in d.items()}
+    '''
+    x = ast.parse(open(path[0] + filename + '.py').read())
+    from ast_transform import Transformer
+    #print(codegen.to_source(x))
+    Transformer().visit(x)
+    
+    import codegen
+    print(codegen.to_source(x))
+    
+    res = ModuleVisitor()
+    #res.sym = sym
+    res.visit(x)
+    return res
+
+     
 if __name__=='__main__':
     import analyze
     analyze.main()

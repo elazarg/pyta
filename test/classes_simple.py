@@ -4,6 +4,7 @@ class A:
     q=4
     def kill(self):
         return 6
+    x=A
 
 if x:
     pass

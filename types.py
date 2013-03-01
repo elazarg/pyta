@@ -79,10 +79,10 @@ def join(a, b):
     if a == b:                  return a
     if a is ANY or b is ANY:    return ANY
 
-    if type(a.get_unspecific())==type(b.get_unspecific()) and type(a)==Specific:
+    if type(a.get_unspecific()) == type(b.get_unspecific()) and type(a) == Specific:
         return a.get_unspecific()
 
-    if type(a) == type(b) == Instance:
+    if issubclass(type(a), Instance) and issubclass(type(b), Instance):
         return TypeSet([a, b])
     
     return a + b
@@ -144,7 +144,7 @@ class TypeSet(InstanceInterface):
 
     def tostr(self):
         if self:
-            return 'T{0}'.format(', '.join([t.tostr() for t in self.types]))
+            return 'T{' + '{0}'.format(', '.join([t.tostr() for t in self.types])) + '}'
         else:
             return '-'
     
@@ -157,7 +157,6 @@ class Instance(InstanceInterface):
     def __init__(self, mytype:InstanceInterface=None, sym:SymTable=None):
         if sym is None:
             sym = SymTable()
-        
         self.mytype = mytype
         self.sym = sym
         
@@ -178,7 +177,7 @@ class Instance(InstanceInterface):
 
     
 class Specific(Instance):
-    pool={}
+    pool = {}
     def __init__(self, mytype, value):
         '@value is THE ONLY place where source object is in the target type-system'
         Instance.__init__(self, mytype)
@@ -235,6 +234,8 @@ class Type(Class):
     def __init__(self):
         TYPECONT[0] = self
         Class.__init__(self, 'type', SymTable())
+        self.instance = Class('@generic')
+        self.instance.instance = None
         
     def tostr(self):
         return 'type'
@@ -249,14 +250,14 @@ FLOAT = Class('float')
 COMPLEX = Class('complex')
 
 BOOL = Class('bool')
+
 TRUE = Specific.factory(BOOL, True)
 FALSE = Specific.factory(BOOL, False)
-
 NONE = Specific.factory(Class('NoneType'), None)
 
 BYTES = STR = TUPLE = LIST = SEQ = DICT = ANY
 
- 
+
 if __name__ == '__main__':
     import analyze
     analyze.main()        

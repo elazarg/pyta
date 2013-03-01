@@ -7,9 +7,8 @@ Created on Jan 23, 2013
 import types
 class SymTable:
     #constants = {'None' : st(NONE), 'False' : st(BOOL), 'True' : st(BOOL)}
-    def __init__(self, enclosing = None):
+    def __init__(self):
         self.vars =  {}
-        self.enclosing = enclosing
     
     def bind(self, var_id, anInstance):
         assert isinstance(var_id, str)
@@ -19,12 +18,7 @@ class SymTable:
         assert self.vars[var_id] is not None
         
     def get_var(self, name):
-        res = self.vars.get(name, None)
-        if res != None:
-            return res
-        if self.enclosing==None:
-            return types.nts()
-        return self.enclosing.get_var(name)
+        return self.vars.get(name, types.nts())
 
     def __getitem__(self, name):
         return self.get_var(name)

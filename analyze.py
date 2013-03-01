@@ -4,7 +4,6 @@
 TODO:
 
 * type variables (lazy/memoizable?)
-* augmented assignment
 * single-valued-ints
 * better ListComp (more specific)
 * Exceptions
@@ -13,7 +12,6 @@ TODO:
 * strict support for some sublanguage
 * milestone - sit with Yuri/Eran
 
-* attributes
 * metaclasses
 
 * basic control flow
@@ -33,7 +31,7 @@ def pretest():
              'assign_simple',
              # 'assign_multi',
              'functions_and_calls',
-             # 'classes_simple'
+             'classes_simple'
               ]                 
     for file in files:
         print('test :', file)

@@ -1,5 +1,4 @@
-from types import Instance, TypeSet, st, Class
-from symtable import SymTable
+from types import Instance, Class, TypeSet, ANY
        
 class Arguments():
     def __init__(self, arg, b = None):         
@@ -68,30 +67,32 @@ class Arguments():
         
         return '({0})'.format( ', '.join(i if isinstance(i, str) else i.tostr() for i in [pos, defs, varargs, kws, kwargs, self.bind] if i) )
 
-FUNCTION_CLASS = Class('function')
+
+FUNCTION = Class('function') 
+
 '''
 should make distinction between types of variables in general,
 and return type of some specific execution place
 '''
 class Function(Instance):
-    def __init__(self, args, typefunc, t, bind = None):
+    def __init__(self, args, typefunc, name, bind = None):
         # assert isinstance(typefunc, (TypeSet, type(None)))
-        Instance.__init__(self, FUNCTION_CLASS)
+        Instance.__init__(self, FUNCTION)
         self.orig_args = args
-        self.t = t
+        self.name = name
         self.args = Arguments(args, bind)
-        if t == None:
-            self.typefunc = lambda *x : st(Instance(type(None)))
+        if typefunc == None:
+            self.typefunc = lambda *x : Instance(type(None))
         else:
             self.typefunc = typefunc
     
     def tostr(self):
         from ast import Call, Name, Load
         c = Call(func=Name(id='x', ctx=Load()), args=[TypeSet({})], keywords=[], starargs=None, kwargs=None)
-        return self.t + ' {0} -> {1}'.format(self.args.tostr(), self.typefunc(c).tostr())
+        return ' {0} -> {1}'.format(self.args.tostr(), self.typefunc(c).tostr())
 
     def bind_parameter(self, bind):
-        return Function(self.orig_args, self.typefunc, self.t, bind)
+        return Function(self.orig_args, self.typefunc, self.name, bind)
         
     def ismatch(self, actual_args):
         res = self.args.ismatch(actual_args)
@@ -105,6 +106,15 @@ class Function(Instance):
         if not self.ismatch(actual_args):
             return TypeSet({})
         return self.typefunc(actual_args)
+    @staticmethod
+    def get_generic():
+        from ast import arguments
+        args = arguments(args=[], vararg=None, varargannotation=None, kwonlyargs=[], kwarg=None, kwargannotation=None, defaults=[], kw_defaults=[])
+        res = Function(args, lambda x : ANY, '@generic')
+        res.args.ismatch = lambda *x : True
+        return res
+
+FUNCTION.instance = Function.get_generic()
 
 if __name__=='__main__':
     import analyze
