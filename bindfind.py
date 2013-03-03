@@ -147,7 +147,7 @@ class Namespace:
     def __hash__(self):
         return hash(self.node)
     
-    def run(self):
+    def make_namespaces(self):
         bindings = find_bindings(self.node)
         self.locals = set(bindings.locals)
         self.bind_globals(bindings.globals)
@@ -173,10 +173,11 @@ class Namespace:
         from ast import ClassDef, FunctionDef
         self.definitions = set()
         self.vars = set()
+        def mylen():
+            return sum(len(i) for i in
+                  [self.definitions, self.locals,
+                   self.vars, self.globals ]) 
         while True:
-            mylen = lambda : sum(len(i) for i in
-                                 [self.definitions, self.locals,
-                                  self.vars, self.globals ]) 
             size = mylen() 
             for name, node in self.locals:
                 if isinstance(node, (ClassDef, FunctionDef)):
@@ -184,7 +185,7 @@ class Namespace:
                 else:
                     self.vars.add( name )
             for d in self.definitions:
-                d.run()
+                d.make_namespaces()
             if size == mylen():
                 break
 
@@ -225,8 +226,8 @@ class GlobalNamespace(Namespace):
 
 if __name__=='__main__':
     from ast import parse
-    fp = parse(open('test.py').read())
+    fp = parse(open('bindfind.py').read())
     b = GlobalNamespace(fp)
-    b.run()
+    b.make_namespaces()
     print(b.tostr())
     

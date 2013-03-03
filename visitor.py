@@ -22,7 +22,7 @@ class Visitor(NodeVisitor):
         self.parent = parent
         self.globals = parent.globals
     
-    def run(self, node):
+    def make_namespaces(self, node):
         self.bindings = find_bindings(node)
         return joinall(self.visit(n) for n in node.body)
 
@@ -87,7 +87,7 @@ class Visitor(NodeVisitor):
     def visit_FunctionDef(self, func):
         #TODO : add type variables
         v = Visitor(self)
-        returns = v.run(func)
+        returns = v.make_namespaces(func)
         if not returns:
             returns = NONE
         res = self.create_func(func.args, returns, func.name)
@@ -101,7 +101,7 @@ class Visitor(NodeVisitor):
         #assume for now that methods only calls previous ones
         #self.bind_weak(cls.name, Class('@temp'))
         v = Visitor(self, name=cls.name)
-        v.run(cls)
+        v.make_namespaces(cls)
         c = Class(cls.name, v.sym)
         builtins = {'float', 'complex', 'int'}
         if cls.name in self.presym or cls.name in builtins:
@@ -237,7 +237,7 @@ class ModuleVisitor(Visitor):
         return self.sym    
 
     def visit_Module(self, node):
-        return self.run(node)
+        return self.make_namespaces(node)
     
 def analyze_file(filename, path=()):
     '''

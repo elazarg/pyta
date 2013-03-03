@@ -1,4 +1,4 @@
-from types import Instance, Class, TypeSet, ANY
+from targettypes import Instance, Class, TypeSet, ANY
        
 class Arguments():
     def __init__(self, arg, b = None):         
