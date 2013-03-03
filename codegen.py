@@ -91,7 +91,7 @@ class SourceGenerator(NodeVisitor):
     `node_to_source` function.
     """
 
-    def __init__(self, indent_with, add_line_information=False):
+    def __init__(self, indent_with, add_line_information=False) -> None:
         self.result = []
         self.indent_with = indent_with
         self.add_line_information = add_line_information
@@ -195,7 +195,7 @@ class SourceGenerator(NodeVisitor):
 
     def visit_FunctionDef(self, node):
         self.decorators(node)
-        self.write('def ', node.name, '(', node.args, ')', ('->', node.returns), node.body, sep='', end='\n')
+        self.write('def ', node.name, '(', node.args, ')', (' -> ', node.returns), node.body, sep='', end='\n')
         
     def visit_ClassDef(self, node):
         self.decorators(node)

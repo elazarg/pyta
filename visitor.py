@@ -1,8 +1,8 @@
 #!/sbin/python3
 import ast 
-from types import TypeSet, Class, Specific, ANY, st, join, joinall
-from types import BOOL, INT, FLOAT, NONE, COMPLEX, TRUE, FALSE, TYPE
-from types import BYTES, STR, TUPLE, LIST, SEQ, DICT
+from targettypes import TypeSet, Class, Specific, ANY, st, join, joinall
+from targettypes import BOOL, INT, FLOAT, NONE, COMPLEX, TRUE, FALSE, TYPE
+from targettypes import BYTES, STR, TUPLE, LIST, SEQ, DICT
 from definitions import Function, Arguments
 from symtable import SymTable
 from bindfind import find_bindings
