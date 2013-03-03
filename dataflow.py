@@ -6,7 +6,27 @@ Created on Mar 1, 2013
 import networkx as nx
 import ast
 
+'''
+Edges represent passage of type information.
 
+Types of vertices in the dataflow graph:
+* Name - simple string
+* Namespace - collection of 'name' nodes
+* Binding - node that feeds one or more Name nodes
+  * Assign
+  * AugAssign
+  * For
+  * With
+  * Except
+  * Definitions:
+      * Function Definition
+      * Class Definition  
+* Expression - node that have a Type and feeds it to another node
+  * Value - expression with known type.
+  * Call - linked to arguments
+  * NameExpression - linked to Namespace
+  * Attribute ? - grows edges 'dynamically'
+'''
 class Visitor(ast.NodeVisitor):
     count=0
     def add_node(self, node):
