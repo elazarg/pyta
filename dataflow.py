@@ -11,7 +11,6 @@ Edges represent passage of type information.
 
 Types of vertices in the dataflow graph:
 * Name - simple string
-* Namespace - collection of 'name' nodes
 * Binding - node that feeds one or more Name nodes
   * Assign
   * AugAssign
@@ -30,21 +29,34 @@ Types of vertices in the dataflow graph:
   * Lambda
   * NameExpression - linked to Namespace
   * Attribute ? - grows edges 'dynamically'
+--
+* Namespace - collection of 'name' nodes
 '''
 
 class GraphNode:
     pass
 
 class GBinding(GraphNode):
+    '''These nodes serve as kind of multiplexer - 
+    controlling flow of type information from expressions to names.'''
     pass
-
+ 
+class GNameDef(GBinding):
+    def __init__(self, name):
+        self.name = name
+    
+    def __repr__(self):
+        return '*'+str(self.name)
+       
 class GAssign(GBinding):
+    'only for the tuple case'
     def __init__(self, targets, value):
-        self.targets = targets
+        self.targets = tuple(GNameDef(i.id) for i in targets)
         self.value = value
     
     def __repr__(self):
-        return str(self.targets) + '=' + str(self.value)
+        left = tuple(self.targets) if len(self.targets) > 1 else self.targets[0]
+        return str(left) + '=' + str(self.value)
 
 class GFor(GBinding):
     def __init__(self, target, iterable):
@@ -53,21 +65,60 @@ class GFor(GBinding):
     
     def __repr__(self):
         return 'for ' + str(self.target) + ' in ' + str(self.iter)
-  
-class GNum(GraphNode):
-    def __init__(self, value):
-        self.value = value
-        
-    def __repr__(self):
-        return str(self.value)
 
-class GName(GraphNode):
+class GExpression(GraphNode):
+    def __init__(self, mytype):
+        self.mytype = mytype
+
+class GName(GExpression):
     def __init__(self, name):
         self.name = name
     
     def __repr__(self):
         return str(self.name)
 
+class GCall(GExpression):
+    #TODO : add function-call type
+    def __init__(self, name):
+        self.name = name
+    
+    def __repr__(self):
+        return str(self.name)
+
+class GTuple(GExpression):
+    def __init__(self, tuplist):
+        self.tuplist = tuple(tuplist)
+
+    def __eq__(self, other):
+        return isinstance(other, GTuple) and self.tuplist == other.tuplist
+
+    def __hash__(self):
+        return hash(self.tuplist)
+             
+    def __repr__(self):
+        return str(tuple(self.tuplist))
+
+class GList(GTuple):
+    def __repr__(self):
+        return str(self.tuplist)
+
+class GValue(GExpression):
+    def __init__(self, value):
+        self.value = value
+    
+    def __eq__(self, other):
+        return isinstance(other, GValue) and self.value == other.value
+
+    def __hash__(self):
+        return hash(self.value)
+            
+    def __repr__(self):
+        return '<{0}>'.format(self.value)
+    
+class GNum(GValue):    pass
+class GStr(GValue):    pass
+class GConstant(GValue):    pass
+        
 from bindfind import GlobalNamespace 
 class GraphCreator(ast.NodeVisitor):
     def __init__(self):
@@ -77,20 +128,31 @@ class GraphCreator(ast.NodeVisitor):
         self.ns = GlobalNamespace(node)
         self.ns.make_namespaces()
         for name, node in self.ns.locals:
-            self.g.add_edge(self.visit(node), GName(name))      
-        print(str(self.g.edges()))
+            self.g.add_edge(self.visit(node), GNameDef(name))      
+    
+    def printme(self):
+        for i in self.g.edges():
+            print(str(i))
         #self.visit(node)
 
     def visit_Name(self, node):
-        return GName(node.id)
+        'this is for NameExpressions ONLY'
+        if isinstance(node.ctx, ast.Load):
+            return GName(node.id)
+        return GNameDef(node.id)
     
     def visit_Assign(self, node):
-        targets = [self.visit(i) for i in node.targets]
         value = self.visit(node.value)
-        res = GAssign(targets, value)
-        self.g.add_edge(value, res)
-        return res
-    
+        target = node.targets[0]
+        if isinstance(target, ast.Name):
+            return value
+        if isinstance(target, ast.Tuple):
+            #targets = [self.visit(i) for i in node.targets]
+            res = GAssign(target.elts, value)
+            #self.g.add_edge(value, res)
+            return res
+        assert False
+        
     def visit_For(self, node):
         iterable = self.visit(node.iter)
         res = GFor(self.visit(node.target), iterable)
@@ -100,15 +162,29 @@ class GraphCreator(ast.NodeVisitor):
     def visit_Num(self, node):
         return GNum(node.n)
     
+    def visit_NameConstant(self, node):
+        return GConstant(node.value)
+    
+    def makeseq(self, node, T):
+        'looks like duplicate bookkeeping for these nodes'
+        tup = [self.visit(i) for i in node.elts]
+        res = T(tup)
+        for v in tup:
+            self.g.add_edge(v, res)
+        return res
+    
     def visit_Tuple(self, node):
-        return [self.visit(i) for i in node.elts]
+        return self.makeseq(node, GTuple)
+
+    def visit_List(self, node):
+        return self.makeseq(node, GList)
     
 if __name__=='__main__':
     from ast import parse
     fp = parse(open('test.py').read())
     b = GraphCreator()
     b.build(fp)
-    
+    b.printme()
         
     
     

@@ -4,7 +4,7 @@ Created on Jan 23, 2013
 @author: elazar
 '''
 
-import types
+import targettypes as types
 class SymTable:
     #constants = {'None' : st(NONE), 'False' : st(BOOL), 'True' : st(BOOL)}
     def __init__(self):
