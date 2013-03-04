@@ -19,111 +19,96 @@ Types of vertices in the dataflow graph:
   * With
   * Except
   * Definitions:
-      * Function Definition
-      * Class Definition  
+      * Function
+      * Class  
 * Expression - node that have a Type and feeds it to another node
-  * Value - expression with known type.
-  * Call - linked to arguments
+  * Value - expression with known type
+      * Num
+      * NameConstant
+      * Str
+  * Call - linked to name and arguments
+  * Lambda
   * NameExpression - linked to Namespace
   * Attribute ? - grows edges 'dynamically'
 '''
-class Visitor(ast.NodeVisitor):
-    count=0
-    def add_node(self, node):
-        self.count += 1
-        node.id = self.count
-        self.g.add_node(node)
 
-    def add_edge(self, edge):
-        for k in edge:
-            self.add_node(k)
-        self.g.add_edge(edge)
-    
-    def generic_visit(self, node):
-        self.add_node(node)
-        super().generic_visit(self, node)
-    
-    def __init__(self, parent):
-        g=nx.DiGraph()
+class GraphNode:
+    pass
 
-    def visit_Module(self, node):
-        return self.generic_visit(node)
-   
+class GBinding(GraphNode):
+    pass
+
+class GAssign(GBinding):
+    def __init__(self, targets, value):
+        self.targets = targets
+        self.value = value
+    
+    def __repr__(self):
+        return str(self.targets) + '=' + str(self.value)
+
+class GFor(GBinding):
+    def __init__(self, target, iterable):
+        self.target = target
+        self.iter = iterable
+    
+    def __repr__(self):
+        return 'for ' + str(self.target) + ' in ' + str(self.iter)
+  
+class GNum(GraphNode):
+    def __init__(self, value):
+        self.value = value
+        
+    def __repr__(self):
+        return str(self.value)
+
+class GName(GraphNode):
+    def __init__(self, name):
+        self.name = name
+    
+    def __repr__(self):
+        return str(self.name)
+
+from bindfind import GlobalNamespace 
+class GraphCreator(ast.NodeVisitor):
+    def __init__(self):
+        self.g = nx.DiGraph()
+        
+    def build(self, node):
+        self.ns = GlobalNamespace(node)
+        self.ns.make_namespaces()
+        for name, node in self.ns.locals:
+            self.g.add_edge(self.visit(node), GName(name))      
+        print(str(self.g.edges()))
+        #self.visit(node)
+
+    def visit_Name(self, node):
+        return GName(node.id)
+    
     def visit_Assign(self, node):
+        targets = [self.visit(i) for i in node.targets]
         value = self.visit(node.value)
-        for target in node.targets:
-            self.add_edge(target, value)
-            
-    '''            
-        def visit_Attribute(self, attr):
-            pass
+        res = GAssign(targets, value)
+        self.g.add_edge(value, res)
+        return res
     
-        def visit_FunctionDef(self, func):
-            pass
-        
-        def visit_ClassDef(self, cls):
-            pass
-                
-        def visit_Call(self, value):
-            pass
-                
-        def visit_IfExp(self, ifexp):
-            pass
-        
-        def visit_Subscript(self, sub):
-            pass
+    def visit_For(self, node):
+        iterable = self.visit(node.iter)
+        res = GFor(self.visit(node.target), iterable)
+        self.g.add_edge(iterable, res)
+        return res
     
-        def visit_BinOp(self, binop):
-            pass
-        
-        def visit_If(self, stat):
-            pass
-        
-        def visit_While(self, stat):
-            pass
-        
-        def visit_For(self, stat):
-            pass
-        
-        def visit_Return(self, ret):
-            pass
+    def visit_Num(self, node):
+        return GNum(node.n)
     
-    '''
-            
-    def visit_Str(self, node):
-        self.add_node(node)
-        return node
+    def visit_Tuple(self, node):
+        return [self.visit(i) for i in node.elts]
     
-    visit_NameConstant = visit_Num = visit_Bytes = visit_Str
-    '''
-    def visit_Dict(self, value):
-        pass
+if __name__=='__main__':
+    from ast import parse
+    fp = parse(open('test.py').read())
+    b = GraphCreator()
+    b.build(fp)
     
-    def visit_Tuple(self, value):
-        pass
         
-    def visit_List(self, value):
-        pass
-
-    '''
     
-    def visit_Name(self, value):
-        nodes = self.find_bindings(value.id)
-        for k in nodes:
-            self.add_edge( (k, value) )
-        
-    '''
-        return c[cons.value]
-
-    def visit_ListComp(self, value):
-        pass
- 
-    def visit_Lambda(self, lmb):
-        pass
     
-    def visit_Expr(self, expr):
-        pass
-    
-    def visit_arguments(self, args):
-        pass
-        

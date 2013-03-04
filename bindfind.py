@@ -64,7 +64,7 @@ class LocalBindingFinder(NodeVisitor):
         return [str(self.visit(node.value)[0]) + '.' + node.attr]
 
     def visit_Tuple(self, node):
-        return [self.visit(x)[0] for x in node.elts]
+        return sum([self.visit(x) for x in node.elts], [])
 
     visit_List = visit_Tuple
 
