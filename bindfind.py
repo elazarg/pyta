@@ -104,7 +104,9 @@ class LocalBindingFinder(NodeVisitor):
         args += [p.arg for p in node.kwonlyargs]
         if node.kwarg is not None:
             args += [node.kwarg]
-        return [(p, node) for p in args]
+        import ast
+        #patchwork
+        return [ (p, ast.Name(p, ast.Store())) for p in args]
     
     def find_simple_bindings(self, node) -> list:
         'returns a list<name, node> with all local occurences of binding statements'
@@ -177,6 +179,9 @@ class Namespace:
     def make_namespaces(self):
         self.bindings = bindings = find_bindings(self.node)
         self.locals = set(bindings.locals)
+        #patchwork
+        for n in self.locals:
+            n[1].namespace = locals
         self.bind_globals(bindings.globals)
         self.bind_nonlocals(bindings.nonlocals)
         self.create_children()

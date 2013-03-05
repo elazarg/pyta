@@ -1,5 +1,6 @@
-def foo():
-    pass
+def foo(y):
+    x=5
+    z=y
 
 class A:
     def bar(self):

@@ -64,13 +64,24 @@ class GClassDef(GNameSpace):
         return 'class ' + self.name
 
 class GFunctionDef(GNameSpace):
-    def __init__(self, name):
-        self.name = name
+    def __init__(self, node, graph):
+        self.name = node.name
+        from definitions import Function
+        self.type = Function(node, graph)
         
     def __repr__(self):
         return 'def ' + self.name
 
-
+class GArguments(GBinding):
+    def __init__(self, args):
+        from definitions import Arguments
+        'constraints: value is splitable to len(targets) recursively'
+        self.target = Arguments(args)
+        self.id = self.target
+    
+    def __repr__(self):
+        return self.target.tostr()
+  
 class GTupleAssign(GBinding):
     'only for the tuple case'
     def __init__(self, targets, value):
@@ -81,7 +92,7 @@ class GTupleAssign(GBinding):
     def __repr__(self):
         left = tuple(self.target) if len(self.target) > 1 else self.target[0]
         return str(left) + '=' + str(self.value)
-
+    
 class GFor(GBinding):
     def __init__(self, target, iterable):
         'constraints: iterable is, well, iterable'
@@ -204,7 +215,7 @@ class GraphCreator(ast.NodeVisitor):
         return res
     
     def visit_FunctionDef(self, node):
-        res = GFunctionDef(node.name)
+        res = GFunctionDef(node, self.g)
         res.assign_node(node)
         return res
     

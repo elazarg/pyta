@@ -1,23 +1,23 @@
 from targettypes import Instance, Class, TypeSet, ANY
        
 class Arguments():
-    def __init__(self, arg, b = None):         
-        rearg = [i.arg for i in arg.args]
-        size = len(arg.defaults)
+    def __init__(self, args, b = None):         
+        rearg = [i.arg for i in args.args]
+        size = len(args.defaults)
         self.pos = rearg[:-size] if size > 0 else rearg
         
         self.bind = b
         if b != None:
             del self.pos[0]
         
-        self.defs = list(zip(rearg[-size:] , arg.defaults))        
+        self.defs = list(zip(rearg[-size:] , args.defaults))        
         
-        self.vararg = arg.vararg
-        self.varargannotation = arg.varargannotation
-        self.kwonlyargs = [i.arg for i in arg.kwonlyargs]
-        self.kwarg = arg.kwarg
-        self.kwargannotation = arg.kwargannotation
-        self.kw_defaults = arg.kw_defaults
+        self.vararg = args.vararg
+        self.varargannotation = args.varargannotation
+        self.kwonlyargs = [i.arg for i in args.kwonlyargs]
+        self.kwarg = args.kwarg
+        self.kwargannotation = args.kwargannotation
+        self.kw_defaults = args.kw_defaults
         
         self.names = set(rearg + [self.vararg] + self.kwonlyargs + [self.kwarg])  
         
@@ -75,16 +75,13 @@ should make distinction between types of variables in general,
 and return type of some specific execution place
 '''
 class Function(Instance):
-    def __init__(self, args, typefunc, name, bind = None):
+    def __init__(self, node, graph, bind = None):
         # assert isinstance(typefunc, (TypeSet, type(None)))
         Instance.__init__(self, FUNCTION)
-        self.orig_args = args
-        self.name = name
-        self.args = Arguments(args, bind)
-        if typefunc == None:
-            self.typefunc = lambda *x : Instance(type(None))
-        else:
-            self.typefunc = typefunc
+        self.orig_args = node.args
+        self.name = node.name
+        self.args = Arguments(self.orig_args, bind)
+        
     
     def tostr(self):
         from ast import Call, Name, Load
@@ -106,11 +103,12 @@ class Function(Instance):
         if not self.ismatch(actual_args):
             return TypeSet({})
         return self.typefunc(actual_args)
+    
     @staticmethod
     def get_generic():
-        from ast import arguments
-        args = arguments(args=[], vararg=None, varargannotation=None, kwonlyargs=[], kwarg=None, kwargannotation=None, defaults=[], kw_defaults=[])
-        res = Function(args, lambda x : ANY, '@generic')
+        from ast import parse
+        #args = arguments(args=[], vararg=None, varargannotation=None, kwonlyargs=[], kwarg=None, kwargannotation=None, defaults=[], kw_defaults=[])
+        res = Function(parse('def foo(*x, **y): pass').body[0], None)
         res.args.ismatch = lambda *x : True
         return res
 
