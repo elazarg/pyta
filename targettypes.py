@@ -202,6 +202,9 @@ class Specific(Instance):
     def tostr(self):
         return self.get_unspecific().tostr() + '[{0}]'.format(self.value)
     
+    def __repr__(self):
+        return self.tostr()
+    
 TYPECONT = [None]
     
 class Class(Instance):
@@ -255,9 +258,74 @@ TRUE = Specific.factory(BOOL, True)
 FALSE = Specific.factory(BOOL, False)
 NONE = Specific.factory(Class('NoneType'), None)
 
-BYTES = STR = TUPLE = LIST = SEQ = DICT = ANY
+BYTES = LIST = SEQ = DICT = ANY
+
+TUPLE = Class('tuple')
 
 
-if __name__ == '__main__':
-    import analyze
-    analyze.main()        
+class TSeq(Instance):
+    def __init__(self, *targs):
+        self.instance_vars = SymTable()
+        self.types = set(targs)
+    
+    def split_to(self, n):
+        'should it be a copy?'
+        return [self.types] * n
+    
+    def __repr__(self):
+        return "Seq(" + repr(self.types) + ")"
+
+    #def get_dict(self):       return {i:j for i, j in list(self.dict.items()) + list(super.get_dict(self).items())} 
+
+
+class TIter(TSeq):
+    def __repr__(self):
+        return "Iter(" + repr(self.types) + ")"
+
+class TDict(TSeq):
+    def __init__(self, tkeys, tvalues):
+        from itertools import product
+        self.instance_vars = SymTable()   
+        skeys = TypeSet.union_all(tkeys) if len(tkeys) != 0 else TypeSet({})
+        temp = set(sum([list(product(k, v)) for k, v in zip(tkeys, tvalues)], []))
+        self.types = { k : TypeSet([v for tk, v in temp if tk == k]) for k in skeys}
+    
+    def __repr__(self):
+        return "Dict(" + repr(self.types) + ")"
+
+class TTuple(TSeq):
+    def __init__(self, tvalues):
+        self.types = tuple(tvalues)
+            
+    def __len__(self):
+        return len(self.types)
+ 
+    def split_to(self, n):
+        if len(self.types) == n:
+            return self.types
+        else:
+            return tuple([TypeSet() for _ in range(n)])  
+ 
+    def __repr__(self):
+        return repr(self.types)
+
+    def __eq__(self, other):
+        return isinstance(other, TTuple) and self.types == other.types
+    
+    def __hash__(self):
+        return hash(self.types)
+    
+class TStr(TTuple):
+    def __init__(self, tvalues):
+        self.tvalues = tvalues
+        self.types = tuple(Specific.factory(TStr, c) for c in tvalues)
+    
+    def __repr__(self):
+        return repr(self.tvalues)
+
+    def __eq__(self, other):
+        return self.tvalues == other.tvalues
+    
+    def __hash__(self):
+        return hash(self.types)
+        

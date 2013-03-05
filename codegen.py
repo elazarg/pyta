@@ -365,6 +365,7 @@ class SourceGenerator(NodeVisitor):
 
 
 if __name__ == '__main__':
-    fp = parse(open('codegen.py').read())
+    #fp = parse(open('codegen.py').read())
+    fp = parse('foo()')
     st = to_source(fp)
     print(st)

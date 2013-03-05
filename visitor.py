@@ -2,7 +2,7 @@
 import ast 
 from targettypes import TypeSet, Class, Specific, ANY, st, join, joinall
 from targettypes import BOOL, INT, FLOAT, NONE, COMPLEX, TRUE, FALSE, TYPE
-from targettypes import BYTES, STR, TUPLE, LIST, SEQ, DICT
+from targettypes import BYTES, TUPLE, LIST, SEQ, DICT
 from definitions import Function, Arguments
 from symtable import SymTable
 from bindfind import find_bindings
@@ -110,15 +110,15 @@ class Visitor(NodeVisitor):
         else:
             self.bind_weak(cls.name, c)
             
-    def visit_Call(self, value):
-        value.args = [self.visit(i) for i in value.args]
-        for keyword in value.keywords:
+    def visit_Call(self, node):
+        node.args = [self.visit(i) for i in node.args]
+        for keyword in node.keywords:
             keyword.value = self.visit(keyword.value)
-        func = value.func
+        func = node.func
         if isinstance(func, ast.Name):
-            res = self.visit(func).call(value)
+            res = self.visit(func).call(node)
         elif isinstance(func, ast.Attribute):
-            res = self.get_attr_types(func.value, func.attr).call(value)
+            res = self.get_attr_types(func.value, func.attr).call(node)
             #if None in res:             print('recursive class definition found')
         return res
             

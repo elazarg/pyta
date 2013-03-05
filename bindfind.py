@@ -42,7 +42,7 @@ class LocalBindingFinder(NodeVisitor):
         return header + self.find_simple_bindings(node)
     
     def visit_With(self, node):
-        header = [ (item.optional_vars.id, node)
+        header = [ (item.optional_vars.id, item)
                        for item in node.items
                        if item.optional_vars is not None]
         return header + self.find_simple_bindings(node)
@@ -97,6 +97,15 @@ class LocalBindingFinder(NodeVisitor):
         self.globals.update(node.names)
         return []
         
+    def visit_arguments(self, node):
+        args = [p.arg for p in node.args]
+        if node.vararg is not None:
+            args += [node.vararg]
+        args += [p.arg for p in node.kwonlyargs]
+        if node.kwarg is not None:
+            args += [node.kwarg]
+        return [(p, node) for p in args]
+    
     def find_simple_bindings(self, node) -> list:
         'returns a list<name, node> with all local occurences of binding statements'
         from ast import iter_fields 
@@ -104,6 +113,12 @@ class LocalBindingFinder(NodeVisitor):
         for name, body in iter_fields(node):
             if name in ('body', 'orelse', 'handlers', 'finalbody'):
                 res += sum( (self.visit(stmt) for stmt in body) , [])
+            if name == 'args':
+                args = self.visit(body)
+                for (_, n) in args:
+                    n.lineno = node.lineno
+                res += args
+                
         return res
     
 class Names:
@@ -130,7 +145,19 @@ def find_bindings(node) -> Names:
      
     return Names(local_names, nonlocal_names, global_names)
 
+def get_depth_lookups(root, depth=-1):
+    import ast
+    for node in ast.iter_child_nodes(root):
+        if isinstance(node, ast.Name): # and isinstance(node.ctx, ast.Load):
+            yield node
+        elif not isinstance(node, (ast.FunctionDef, ast.ClassDef)):
+            yield from get_depth_lookups(node, depth)
+        elif depth != 0:
+            yield from get_depth_lookups(node, depth-1)
 
+def fst(seq):
+    return [t[0] for t in seq]
+    
 class Namespace:
     '''
     A node in the syntax tree. have a dictionary<name, set of binding places>
@@ -148,15 +175,17 @@ class Namespace:
         return hash(self.node)
     
     def make_namespaces(self):
-        bindings = find_bindings(self.node)
+        self.bindings = bindings = find_bindings(self.node)
         self.locals = set(bindings.locals)
         self.bind_globals(bindings.globals)
         self.bind_nonlocals(bindings.nonlocals)
         self.create_children()
+        self.update_lookups()
         
     def bind_globals(self, global_vars):
         'globals are updated even there there was not such name'
-        self.globals.update(global_vars)
+        self.global_bindings = set(global_vars)
+        #self.global_bindings.update(self.globals)
            
     def bind_nonlocals(self, nonlocal_vars):
         'nonlocals are searched for.'
@@ -178,6 +207,8 @@ class Namespace:
                   [self.definitions, self.locals,
                    self.vars, self.globals ]) 
         while True:
+            '''we loop here because new definitions in local environment
+            can be done in nested defintions'''
             size = mylen() 
             for name, node in self.locals:
                 if isinstance(node, (ClassDef, FunctionDef)):
@@ -189,6 +220,21 @@ class Namespace:
             if size == mylen():
                 break
 
+    def lookup(self, name:str):
+        if name in fst(self.locals):
+            return self.locals
+        return self.parent.lookup(name)
+        
+    def update_lookups(self):
+        for name in get_depth_lookups(self.node, 0):
+            #print(fst(self.global_bindings))
+            if name in fst(self.global_bindings):
+                name.namespace = self.globals
+            else:
+                name.namespace = self.lookup(name.id)
+        for d in self.definitions:
+            d.update_lookups()
+        
     def tostr(self):
         res = ' ' * self.depth + str(self.node.name) + ' ' +  str(self.node.lineno)
         if len(self.locals) > 0:
@@ -223,11 +269,17 @@ class GlobalNamespace(Namespace):
     def nonlocal_update(self, name, node):
         print('nonlocal error: {0}'.format(name))
  
+    def lookup(self, name:str):
+        if name in fst(self.locals):
+            return self.locals
+        return None
 
 if __name__=='__main__':
     from ast import parse
-    fp = parse(open('bindfind.py').read())
+    fp = parse(open('test.py').read())
     b = GlobalNamespace(fp)
     b.make_namespaces()
     print(b.tostr())
+    for i in get_depth_lookups(fp):
+        print(i.id, id(i.namespace))
     
