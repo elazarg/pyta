@@ -64,10 +64,9 @@ class GClassDef(GNameSpace):
         return 'class ' + self.name
 
 class GFunctionDef(GNameSpace):
-    def __init__(self, node, graph):
+    def __init__(self, node, mytype):
         self.name = node.name
-        from definitions import Function
-        self.type = Function(node, graph)
+        self.type = mytype
         
     def __repr__(self):
         return 'def ' + self.name
@@ -125,11 +124,20 @@ class GName(GraphNode):
     def __init__(self, node):
         self.name = node.id
         self.namespace = node.namespace
-        self.id = (node.id, id(node.namespace) if node.namespace is not None else None)
+        self.id = (self.namespace, node.id)
     
     def __repr__(self):
-        return str( (self.name, id(self.namespace)//8%256) )
+        return str( ''.join(self.id) )
 
+class GArg(GName):
+    def __init__(self, node):
+        node.id = node.arg
+        super().__init__(node)
+        self.pos = node.pos
+
+    def __repr__(self):
+        return super().__repr__() + '[{}]'.format(self.pos)
+        
 class GExpression(GraphNode):
     def __init__(self, mytype):
         self.mytype = mytype
@@ -184,6 +192,7 @@ class GraphCreator(ast.NodeVisitor):
         self.ns = GlobalNamespace(node)
         self.ns.make_namespaces()
         self.build(self.ns)
+
         '''
         from bindfind import get_depth_lookups
         for namenode in get_depth_lookups(node):
@@ -192,9 +201,13 @@ class GraphCreator(ast.NodeVisitor):
         
     def build(self, namespace):
         for name, node in namespace.locals:
-            namenode = ast.Name(id=name, ctx=ast.Store())
-            namenode.namespace = namespace.locals
-            self.g.add_edge(self.visit(node), GName(namenode))
+            if isinstance(node, ast.arg):
+                node.namespace = namespace.name
+                self.g.add_node(GArg(node,))
+            else:
+                namenode = ast.Name(id=name, ctx=ast.Store())
+                namenode.namespace = namespace.name
+                self.g.add_edge(self.visit(node), GName(namenode))
         
         for d in namespace.definitions:
             self.build(d)
@@ -206,7 +219,6 @@ class GraphCreator(ast.NodeVisitor):
         #self.visit(node)
 
     def visit_Name(self, node):
-        'this is for NameExpressions ONLY'
         return GName(node)
     
     def visit_ClassDef(self, node):
@@ -215,8 +227,31 @@ class GraphCreator(ast.NodeVisitor):
         return res
     
     def visit_FunctionDef(self, node):
-        res = GFunctionDef(node, self.g)
+        from definitions import Function
+        func = Function(node, self.g)
+        res = GFunctionDef(node, func)
         res.assign_node(node)
+        return res
+    
+    def visit_Call(self, node):
+        "Call(func=Name(id='foo', ctx=Load()), args=[], keywords=[], starargs=None, kwargs=None)"
+        func = self.visit(node.func)
+        args = [self.visit(i) for i in node.args]
+        res = GCall(func, args)
+        res.assign_node(node)
+        for v in [func] + args:
+            self.g.add_edge(v, res)
+        
+        '''
+        for keyword in node.keywords:
+            keyword.value = self.visit(keyword.value)
+        if isinstance(func, ast.Name):
+            res = self.visit(func).call(node)
+        elif isinstance(func, ast.Attribute):
+            res = self.get_attr_types(func.value, func.attr).call(node)
+            #if None in res:             print('recursive class definition found')
+        return res
+        '''
         return res
     
     def visit_Assign(self, node):
@@ -274,27 +309,6 @@ class GraphCreator(ast.NodeVisitor):
 
     def visit_List(self, node):
         return GList(self.makeseq(node, TT.LIST))
-    
-    def visit_Call(self, node):
-        "Call(func=Name(id='foo', ctx=Load()), args=[], keywords=[], starargs=None, kwargs=None"
-        func = self.visit(node.func)
-        args = [self.visit(i) for i in node.args]
-        res = GCall(func, args)
-        res.assign_node(node)
-        for v in [func] + args:
-            self.g.add_edge(v, res)
-        
-        '''
-        for keyword in node.keywords:
-            keyword.value = self.visit(keyword.value)
-        if isinstance(func, ast.Name):
-            res = self.visit(func).call(node)
-        elif isinstance(func, ast.Attribute):
-            res = self.get_attr_types(func.value, func.attr).call(node)
-            #if None in res:             print('recursive class definition found')
-        return res
-        '''
-        return res
     
 if __name__=='__main__':
     from ast import parse

@@ -97,16 +97,23 @@ class LocalBindingFinder(NodeVisitor):
         self.globals.update(node.names)
         return []
         
+    def visit_arg(self, node):
+        return (node.arg, node)
+    
     def visit_arguments(self, node):
-        args = [p.arg for p in node.args]
-        if node.vararg is not None:
-            args += [node.vararg]
-        args += [p.arg for p in node.kwonlyargs]
-        if node.kwarg is not None:
-            args += [node.kwarg]
+        
         import ast
-        #patchwork
-        return [ (p, ast.Name(p, ast.Store())) for p in args]
+        args = [self.visit(p) for p in node.args]
+        if node.vararg is not None:
+            args += [(node.vararg, ast.arg(node.vararg, []))]
+        for i, (p, n) in enumerate(args):
+            n.pos = i 
+        namedargs = [p.arg for p in node.kwonlyargs]
+        if node.kwarg is not None:
+            namedargs += [(node.kwarg, ast.arg(node.kwarg, {}))]
+        for p,n  in namedargs:
+            p.pos = None
+        return args + namedargs
     
     def find_simple_bindings(self, node) -> list:
         'returns a list<name, node> with all local occurences of binding statements'
@@ -159,13 +166,16 @@ def get_depth_lookups(root, depth=-1):
 
 def fst(seq):
     return [t[0] for t in seq]
-    
+
 class Namespace:
+    globalname = '' #can be '__main__ 
     '''
     A node in the syntax tree. have a dictionary<name, set of binding places>
     '''
     def __init__(self, node, parent):
+        import ast
         self.node = node
+        self.name = parent.name + node.name + ('.' if isinstance(node, ast.ClassDef) else ':')
         self.parent = parent
         self.globals = self.parent.globals
         self.depth = self.parent.depth + 1
@@ -181,7 +191,7 @@ class Namespace:
         self.locals = set(bindings.locals)
         #patchwork
         for n in self.locals:
-            n[1].namespace = locals
+            n[1].namespace = self.name
         self.bind_globals(bindings.globals)
         self.bind_nonlocals(bindings.nonlocals)
         self.create_children()
@@ -227,14 +237,14 @@ class Namespace:
 
     def lookup(self, name:str):
         if name in fst(self.locals):
-            return self.locals
+            return self.name
         return self.parent.lookup(name)
         
     def update_lookups(self):
         for name in get_depth_lookups(self.node, 0):
             #print(fst(self.global_bindings))
             if name in fst(self.global_bindings):
-                name.namespace = self.globals
+                name.namespace = Namespace.globalname
             else:
                 name.namespace = self.lookup(name.id)
         for d in self.definitions:
@@ -257,7 +267,8 @@ class GlobalNamespace(Namespace):
     A node in the syntax tree. have a dictionary<name, set of binding places>
     '''
     def __init__(self, node):
-        node.name='__main__'
+        node.name = '__main__'
+        self.name=Namespace.globalname
         node.lineno = 0
         self.node = node
         self.depth = 0
@@ -276,7 +287,7 @@ class GlobalNamespace(Namespace):
  
     def lookup(self, name:str):
         if name in fst(self.locals):
-            return self.locals
+            return self.name
         return None
 
 if __name__=='__main__':
@@ -286,5 +297,5 @@ if __name__=='__main__':
     b.make_namespaces()
     print(b.tostr())
     for i in get_depth_lookups(fp):
-        print(i.id, id(i.namespace))
+        print(i.id, i.namespace)
     

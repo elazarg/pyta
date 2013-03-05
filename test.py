@@ -1,13 +1,22 @@
+def bla(b):
+    x=5 
+    g=b
+z=5
+class Q:
+    g=3
+x=5
+y=bla(x)
 def foo(y):
+    global x
     x=5
     z=y
-
+x=3
+w=foo(3)
 class A:
     def bar(self):
         pass
-    
-
 '''
+    
 x=(5,False)
 z=foo(1,2)
 x=3

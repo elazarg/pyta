@@ -81,7 +81,6 @@ class Function(Instance):
         self.orig_args = node.args
         self.name = node.name
         self.args = Arguments(self.orig_args, bind)
-        
     
     def tostr(self):
         from ast import Call, Name, Load
