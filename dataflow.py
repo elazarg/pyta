@@ -57,11 +57,12 @@ class GNameSpace(GBinding):
     pass
 
 class GClassDef(GNameSpace):
-    def __init__(self, name):
+    def __init__(self, name, namespace):
         self.name = name
+        self.namespace = namespace
         
     def __repr__(self):
-        return 'class ' + self.name
+        return 'class ' + self.name + repr(self.namespace)
 
 class GFunctionDef(GNameSpace):
     def __init__(self, node, mytype):
@@ -137,7 +138,14 @@ class GArg(GName):
 
     def __repr__(self):
         return super().__repr__() + '[{}]'.format(self.pos)
-        
+
+class GReturn(GraphNode):
+    def __init__(self):
+        self.tyoe = None
+
+    def __repr__(self):
+        return 'return'
+   
 class GExpression(GraphNode):
     def __init__(self, mytype):
         self.mytype = mytype
@@ -192,7 +200,6 @@ class GraphCreator(ast.NodeVisitor):
         self.ns = GlobalNamespace(node)
         self.ns.make_namespaces()
         self.build(self.ns)
-
         '''
         from bindfind import get_depth_lookups
         for namenode in get_depth_lookups(node):
@@ -200,17 +207,33 @@ class GraphCreator(ast.NodeVisitor):
         '''
         
     def build(self, namespace):
+        edges = []
         for name, node in namespace.locals:
             if isinstance(node, ast.arg):
                 node.namespace = namespace.name
-                self.g.add_node(GArg(node,))
+                gnode = GArg(node)
+                #self.g.add_node(gnode)
             else:
                 namenode = ast.Name(id=name, ctx=ast.Store())
                 namenode.namespace = namespace.name
-                self.g.add_edge(self.visit(node), GName(namenode))
-        
+                gnode = GName(namenode)
+            
+            edge = (self.visit(node), gnode)
+            self.g.add_edge(*edge) 
+            edges.append(edge)
         for d in namespace.definitions:
             self.build(d)
+            
+        from definitions import Function
+        if namespace.isfunction():
+            from bindfind import iter_all_nodes
+            rets = iter_all_nodes(namespace.node, lambda x : isinstance(x, ast.Return), 0)
+            graph = nx.DiGraph(edges)
+            retnode = GReturn()
+            retnode.assign_node(namespace.node)
+            for n in rets:
+                graph.add_edge(self.visit(n), retnode)
+            Function(namespace.node, graph, retnode)
          
     def printme(self):
         print([str(i) for i in self.g.nodes()])
@@ -290,8 +313,8 @@ class GraphCreator(ast.NodeVisitor):
     def visit_Str(self, node):
         return GStr(TT.TStr(node.s))
     
-    def visit_Bytes(self, value):
-        return TT.BYTES
+    def visit_Bytes(self, node):
+        return GStr(TT.TStr(node.s))
 
     def visit_NameConstant(self, node):
         return GConstant(node.value)
@@ -309,6 +332,9 @@ class GraphCreator(ast.NodeVisitor):
 
     def visit_List(self, node):
         return GList(self.makeseq(node, TT.LIST))
+    
+    def visit_Expr(self, node):
+        return self.visit(node.value)
     
 if __name__=='__main__':
     from ast import parse

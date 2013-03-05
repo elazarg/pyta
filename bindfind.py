@@ -154,16 +154,22 @@ def find_bindings(node) -> Names:
      
     return Names(local_names, nonlocal_names, global_names)
 
+def iter_all_nodes(root, filt, depth=-1):
+    def run(node, d):
+        import ast
+        for n in ast.iter_child_nodes(node):
+            if filt(n): # and isinstance(node.ctx, ast.Load):
+                yield n
+            elif not isinstance(n, (ast.FunctionDef, ast.ClassDef)):
+                yield from run(n, d)
+            elif depth != 0:
+                yield from run(n, d-1)
+    yield from run(root, depth)
+
 def get_depth_lookups(root, depth=-1):
     import ast
-    for node in ast.iter_child_nodes(root):
-        if isinstance(node, ast.Name): # and isinstance(node.ctx, ast.Load):
-            yield node
-        elif not isinstance(node, (ast.FunctionDef, ast.ClassDef)):
-            yield from get_depth_lookups(node, depth)
-        elif depth != 0:
-            yield from get_depth_lookups(node, depth-1)
-
+    yield from iter_all_nodes(root, lambda n: isinstance(n, ast.Name), depth)
+    
 def fst(seq):
     return [t[0] for t in seq]
 
@@ -172,10 +178,14 @@ class Namespace:
     '''
     A node in the syntax tree. have a dictionary<name, set of binding places>
     '''
-    def __init__(self, node, parent):
+    def isfunction(self):
         import ast
+        return isinstance(self.node, ast.FunctionDef) 
+    
+    def __init__(self, node, parent):
         self.node = node
-        self.name = parent.name + node.name + ('.' if isinstance(node, ast.ClassDef) else ':')
+        self.name = parent.name + node.name + (':' if self.isfunction() else '.')
+        self.node.namespace = self.name
         self.parent = parent
         self.globals = self.parent.globals
         self.depth = self.parent.depth + 1
@@ -189,7 +199,6 @@ class Namespace:
     def make_namespaces(self):
         self.bindings = bindings = find_bindings(self.node)
         self.locals = set(bindings.locals)
-        #patchwork
         for n in self.locals:
             n[1].namespace = self.name
         self.bind_globals(bindings.globals)

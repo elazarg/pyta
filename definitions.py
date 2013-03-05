@@ -7,7 +7,7 @@ class Arguments():
         self.pos = rearg[:-size] if size > 0 else rearg
         
         self.bind = b
-        if b != None:
+        if b is not None:
             del self.pos[0]
         
         self.defs = list(zip(rearg[-size:] , args.defaults))        
@@ -75,7 +75,7 @@ should make distinction between types of variables in general,
 and return type of some specific execution place
 '''
 class Function(Instance):
-    def __init__(self, node, graph, bind = None):
+    def __init__(self, node, graph, retnode=None, bind = None):
         # assert isinstance(typefunc, (TypeSet, type(None)))
         Instance.__init__(self, FUNCTION)
         self.orig_args = node.args

@@ -1,9 +1,29 @@
+def foo(x):
+    n=x
+    def bar():
+        return n
+    return bar
+z=foo(1)
+y=foo(2)
+print(z(), y())
+
+
+'''
+class Q:
+    g=3
+x=5
+y=x
+z='hello'
+
+def foo():
+    pass
+def bar():
+    pass
+foo(bar())
 def bla(b):
     x=5 
     g=b
 z=5
-class Q:
-    g=3
 x=5
 y=bla(x)
 def foo(y):
@@ -15,7 +35,6 @@ w=foo(3)
 class A:
     def bar(self):
         pass
-'''
     
 x=(5,False)
 z=foo(1,2)
