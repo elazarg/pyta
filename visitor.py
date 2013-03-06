@@ -15,7 +15,7 @@ class Visitor(NodeVisitor):
    
     def generic_visit(self, node):
         for n in ast.iter_child_nodes(node):
-            self.visit(n)
+            self.translate(n)
     
     def __init__(self, parent):
         self.sym = SymTable()
@@ -24,7 +24,7 @@ class Visitor(NodeVisitor):
     
     def make_namespaces(self, node):
         self.bindings = find_bindings(node)
-        return joinall(self.visit(n) for n in node.body)
+        return joinall(self.translate(n) for n in node.body)
 
     def visit_Module(self, node):
         assert False
@@ -54,12 +54,12 @@ class Visitor(NodeVisitor):
         self.sym.print()
     
     def visit_Assign(self, node):
-        val = self.visit(node.value)
+        val = self.translate(node.value)
         for target in node.targets:
             if isinstance(target, ast.Name):
                 self.bind_weak(target.id, val) 
             elif isinstance(target, ast.Attribute):
-                self.visit(target.value).bind(target.attr, val)
+                self.translate(target.value).bind(target.attr, val)
             elif isinstance(target, ast.Tuple):
                 size = len(target.elts)
                 target_matrix = [v.split_to(size) for v in val if augisinstance(v, SEQ) and v.can_split_to(size)]
@@ -73,13 +73,13 @@ class Visitor(NodeVisitor):
     def visit_all_childs(self, node):
         returns = TypeSet({})
         for n in ast.iter_child_nodes(node):
-            res = self.visit(n)
+            res = self.translate(n)
             if isinstance(n, ast.stmt) and res != None:
                 returns.update(res)
         return returns
     
     def get_attr_types(self, value, name):
-        return self.visit(value).lookup(name)
+        return self.translate(value).lookup(name)
     
     def visit_Attribute(self, attr):
         return self.get_attr_types(attr.value, attr.attr)
@@ -111,19 +111,19 @@ class Visitor(NodeVisitor):
             self.bind_weak(cls.name, c)
             
     def visit_Call(self, node):
-        node.args = [self.visit(i) for i in node.args]
+        node.args = [self.translate(i) for i in node.args]
         for keyword in node.keywords:
-            keyword.value = self.visit(keyword.value)
+            keyword.value = self.translate(keyword.value)
         func = node.func
         if isinstance(func, ast.Name):
-            res = self.visit(func).call(node)
+            res = self.translate(func).call(node)
         elif isinstance(func, ast.Attribute):
             res = self.get_attr_types(func.value, func.attr).call(node)
             #if None in res:             print('recursive class definition found')
         return res
             
     def visit_IfExp(self, ifexp):
-        return join(self.visit(ifexp.body), self.visit(ifexp.orelse))
+        return join(self.translate(ifexp.body), self.translate(ifexp.orelse))
     
     def visit_Subscript(self, sub):
         assert False
@@ -156,7 +156,7 @@ class Visitor(NodeVisitor):
         return self.visit_While(stat)
     
     def visit_Return(self, ret):
-        return NONE if ret.value == None else self.visit(ret.value)
+        return NONE if ret.value == None else self.translate(ret.value)
 
     def visit_Num(self, value):
         types = { int : 'int', float : 'float', complex : 'complex' }
@@ -173,15 +173,15 @@ class Visitor(NodeVisitor):
         return BYTES
 
     def visit_Dict(self, value):
-        keys=[self.visit(i) for i in value.keys]
-        values=[self.visit(i) for i in value.values]
+        keys=[self.translate(i) for i in value.keys]
+        values=[self.translate(i) for i in value.values]
         return DICT(keys,values)
 
     def visit_Tuple(self, value):
-        return TUPLE([self.visit(i) for i in value.elts])
+        return TUPLE([self.translate(i) for i in value.elts])
         
     def visit_List(self, value):
-        return LIST([self.visit(i) for i in value.elts])
+        return LIST([self.translate(i) for i in value.elts])
 
     def visit_Name(self, value):
         return self.lookup(value.id)
@@ -199,7 +199,7 @@ class Visitor(NodeVisitor):
         for i in val:
             v.bind_weak(name, i.TypeSet())
         '''
-        vall = v.visit(value.elt)
+        vall = v.translate(value.elt)
         res = SEQ.fromset(vall)
         assert not isinstance(res, TypeSet)
         
@@ -208,21 +208,21 @@ class Visitor(NodeVisitor):
         return ANY
  
     def visit_Lambda(self, lmb):
-        returns = self.visit(lmb.body) 
+        returns = self.translate(lmb.body) 
         return self.create_func(lmb.args, returns, '<lambda>')
 
     def visit_Expr(self, expr):
-        self.visit(expr.value)
+        self.translate(expr.value)
     
     def visit_arguments(self, args):
         return Arguments(args)
         
     def getseq(self, expr):
-        return TypeSet({v for v in self.visit(expr.iter) if augisinstance(v, SEQ)})
+        return TypeSet({v for v in self.translate(expr.iter) if augisinstance(v, SEQ)})
     
     def create_func(self, args, returns, name):
-        args.defaults = [self.visit(i) for i in args.defaults]
-        args.kw_defaults = [(self.visit(i) if i != None else i) for i in args.kw_defaults ]
+        args.defaults = [self.translate(i) for i in args.defaults]
+        args.kw_defaults = [(self.translate(i) if i != None else i) for i in args.kw_defaults ]
         return Function(args, lambda *x : returns, name)
 
 
@@ -249,14 +249,14 @@ def analyze_file(filename, path=()):
     x = ast.parse(open(path[0] + filename + '.py').read())
     from ast_transform import Transformer
     #print(codegen.to_source(x))
-    Transformer().visit(x)
+    Transformer().translate(x)
     
     import codegen
     print(codegen.to_source(x))
     
     res = ModuleVisitor()
     #res.sym = sym
-    res.visit(x)
+    res.translate(x)
     return res
 
      

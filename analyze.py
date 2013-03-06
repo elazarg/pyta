@@ -46,7 +46,7 @@ def prelude():
              #'list',
               'functions']                 
     for file in files:
-        g.visit(analyze_file(basedir + file))
+        g.translate(analyze_file(basedir + file))
     g.print()
     return g
 
@@ -56,7 +56,7 @@ def main():
     g = prelude()
     v = visitor.Visitor(g)
     r = analyze_file('test/parsed.py')
-    v.visit(r)
+    v.translate(r)
     v.print()
             
 

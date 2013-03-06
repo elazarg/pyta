@@ -58,7 +58,7 @@ class Transformer(NodeTransformer):
     def take_upto(self, body, stopper=lambda x: isinstance(x, flow_stoppers), ifempty=Pass()):
         def upto():
             for stmt in body:
-                res = self.visit(stmt)
+                res = self.translate(stmt)
                 if res is not None:
                     yield res
                 if stopper(stmt):
@@ -165,7 +165,7 @@ if __name__ == '__main__':
     p = parse(open('codegen.py').read())
     #print(to_source(p))
     while x.has_changed():
-        x.visit(p)
+        x.translate(p)
         
     st = to_source(p)
     print(st)

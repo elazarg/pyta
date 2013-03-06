@@ -77,7 +77,7 @@ def to_source(node, indent_with=' ' * 4, add_line_information=False):
     number information of statement nodes.
     """
     generator = SourceGenerator(indent_with, add_line_information)
-    generator.visit(node)
+    generator.translate(node)
     return ''.join(generator.result)[2:]
 
 def combine(ls1, ls2):
@@ -122,7 +122,7 @@ class SourceGenerator(NodeVisitor):
             app_or_line(prepend)
             
             if isinstance(x, AST):
-                self.visit(x)
+                self.translate(x)
             elif isinstance(x, list):
                 'assuming it is "body"'
                 self.indentation += 1
@@ -181,7 +181,7 @@ class SourceGenerator(NodeVisitor):
         self.write(node.target, BINOP_SYMBOLS[type(node.op)] + '=', node.value)
 
     def visit_Import(self, node):
-        self.write(*node.names, sep=',', start='import', prepend=' ')
+        self.write(*node.bind, sep=',', start='import', prepend=' ')
 
     def visit_ImportFrom(self, node):
         self.write('from', '.' * node.level + node.module, endeach=' ', sep='')
@@ -247,10 +247,10 @@ class SourceGenerator(NodeVisitor):
         self.write(*args, start=start, sep=',', prepend=' ')
 
     def visit_Global(self, node):
-        self.write_list('global', node.names)
+        self.write_list('global', node.bind)
 
     def visit_Nonlocal(self, node):
-        self.write_list('nonlocal', node.names)
+        self.write_list('nonlocal', node.bind)
 
     def visit_Assert(self, node):
         self.write_list('assert', [node.test, node.msg])

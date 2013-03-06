@@ -1,14 +1,17 @@
-def foo(x):
-    n=x
-    def bar():
-        return n
-    return bar
-z=foo(1)
-y=foo(2)
-print(z(), y())
+import ast
+t=2
 
-
+class Q:
+    def get_x(self):
+        return 5
+    x=property(get_x)
+print(Q().x)
 '''
+def bla(t):
+    nonlocal t
+    t=5
+bla()
+print(t)
 class Q:
     g=3
 x=5

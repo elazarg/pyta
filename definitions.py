@@ -19,7 +19,7 @@ class Arguments():
         self.kwargannotation = args.kwargannotation
         self.kw_defaults = args.kw_defaults
         
-        self.names = set(rearg + [self.vararg] + self.kwonlyargs + [self.kwarg])  
+        self.bind = set(rearg + [self.vararg] + self.kwonlyargs + [self.kwarg])  
         
     def with_bind(self, t):
         return Arguments(self.arg, t)
@@ -47,7 +47,7 @@ class Arguments():
             # keyword-only parameter left
             print('keyword-only parameter left:', leftover_keys)
             return False
-        spare_keywords = set(bind.keys()) - self.names
+        spare_keywords = set(bind.keys()) - self.bind
         if self.kwarg == None and len(spare_keywords) > 0:
             # keyword-only parameter left
             print('too many keyword arguments', spare_keywords)

@@ -193,19 +193,24 @@ class GNum(GValue):    pass
 class GStr(GValue):    pass
 class GConstant(GValue):    pass
         
-from bindfind import GlobalNamespace 
+from bindfind import GlobalNamespace, Namespace
 class GraphCreator(ast.NodeVisitor):
     def __init__(self, node):
         self.g = nx.DiGraph()
-        self.ns = GlobalNamespace(node)
-        self.ns.make_namespaces()
-        self.build(self.ns)
+        self.translate(node)
         '''
         from bindfind import get_depth_lookups
         for namenode in get_depth_lookups(node):
             self.g.add_node(GName(namenode))
         '''
         
+    def visit_module(self, node):
+        ns = GlobalNamespace(node)
+        ns.make_namespaces()
+        self.build(ns)
+        #self.create_children()
+        #self.update_lookups()
+    
     def build(self, namespace):
         edges = []
         for name, node in namespace.locals:
@@ -218,28 +223,17 @@ class GraphCreator(ast.NodeVisitor):
                 namenode.namespace = namespace.name
                 gnode = GName(namenode)
             
-            edge = (self.visit(node), gnode)
+            edge = (self.translate(node), gnode)
             self.g.add_edge(*edge) 
             edges.append(edge)
         for d in namespace.definitions:
-            self.build(d)
+            self.translate(d)
             
-        from definitions import Function
-        if namespace.isfunction():
-            from bindfind import iter_all_nodes
-            rets = iter_all_nodes(namespace.node, lambda x : isinstance(x, ast.Return), 0)
-            graph = nx.DiGraph(edges)
-            retnode = GReturn()
-            retnode.assign_node(namespace.node)
-            for n in rets:
-                graph.add_edge(self.visit(n), retnode)
-            Function(namespace.node, graph, retnode)
-         
     def printme(self):
         print([str(i) for i in self.g.nodes()])
         for i in self.g.edges():
             print(str(i))
-        #self.visit(node)
+        #self.translate(node)
 
     def visit_Name(self, node):
         return GName(node)
@@ -251,15 +245,27 @@ class GraphCreator(ast.NodeVisitor):
     
     def visit_FunctionDef(self, node):
         from definitions import Function
-        func = Function(node, self.g)
-        res = GFunctionDef(node, func)
+        
+        namespace= Namespace(node)
+        namespace.make_namespaces()
+        self.build(namespace)
+        
+        from bindfind import iter_all_nodes
+        rets = iter_all_nodes(namespace.node, lambda x : isinstance(x, ast.Return), 0)
+        graph = nx.DiGraph(edges)
+        retnode = GReturn()
+        retnode.assign_node(namespace.node)
+        for n in rets:
+            graph.add_edge(self.translate(n), retnode)
+        res = GFunctionDef(node, Function(namespace.node, graph, retnode))
         res.assign_node(node)
+         
         return res
     
     def visit_Call(self, node):
         "Call(func=Name(id='foo', ctx=Load()), args=[], keywords=[], starargs=None, kwargs=None)"
-        func = self.visit(node.func)
-        args = [self.visit(i) for i in node.args]
+        func = self.translate(node.func)
+        args = [self.translate(i) for i in node.args]
         res = GCall(func, args)
         res.assign_node(node)
         for v in [func] + args:
@@ -267,9 +273,9 @@ class GraphCreator(ast.NodeVisitor):
         
         '''
         for keyword in node.keywords:
-            keyword.value = self.visit(keyword.value)
+            keyword.value = self.translate(keyword.value)
         if isinstance(func, ast.Name):
-            res = self.visit(func).call(node)
+            res = self.translate(func).call(node)
         elif isinstance(func, ast.Attribute):
             res = self.get_attr_types(func.value, func.attr).call(node)
             #if None in res:             print('recursive class definition found')
@@ -278,12 +284,12 @@ class GraphCreator(ast.NodeVisitor):
         return res
     
     def visit_Assign(self, node):
-        value = self.visit(node.value)
+        value = self.translate(node.value)
         target = node.targets[0]
         if isinstance(target, ast.Name):
             return value
         if isinstance(target, ast.Tuple):
-            #targets = [self.visit(i) for i in node.targets]
+            #targets = [self.translate(i) for i in node.targets]
             res = GTupleAssign(target.elts, value)
             res.assign_node(node)
             self.g.add_edge(value, res)
@@ -291,15 +297,15 @@ class GraphCreator(ast.NodeVisitor):
         assert False
     
     def visit_For(self, node):
-        iterable = self.visit(node.iter)
-        res = GFor(self.visit(node.target), iterable)
+        iterable = self.translate(node.iter)
+        res = GFor(self.translate(node.target), iterable)
         res.assign_node(node)
         self.g.add_edge(iterable, res)
         return res
 
     def visit_withitem(self, node):
-        expr = self.visit(node.context_expr)
-        res = GWith(expr, self.visit(node.optional_vars))
+        expr = self.translate(node.context_expr)
+        res = GWith(expr, self.translate(node.optional_vars))
         res.assign_node(node)
         self.g.add_edge(expr, res)
         return res
@@ -321,7 +327,7 @@ class GraphCreator(ast.NodeVisitor):
     
     def makeseq(self, node, T):
         'looks like duplicate bookkeeping for these nodes'
-        tup = [self.visit(i) for i in node.elts]
+        tup = [self.translate(i) for i in node.elts]
         res = T(tup)
         for v in tup:
             self.g.add_edge(v, res)
@@ -334,7 +340,7 @@ class GraphCreator(ast.NodeVisitor):
         return GList(self.makeseq(node, TT.LIST))
     
     def visit_Expr(self, node):
-        return self.visit(node.value)
+        return self.translate(node.value)
     
 if __name__=='__main__':
     from ast import parse
