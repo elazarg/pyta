@@ -44,7 +44,7 @@ class Visitor(NodeVisitor):
             return self.sym
         return self.parent.find_namespace(name)    
        
-    def lookup(self, name):
+    def bind_lookups(self, name):
         return self.find_namespace(name).get_var(name)
      
     def bind_weak(self, name, anInstance):
@@ -79,7 +79,7 @@ class Visitor(NodeVisitor):
         return returns
     
     def get_attr_types(self, value, name):
-        return self.translate(value).lookup(name)
+        return self.translate(value).bind_lookups(name)
     
     def visit_Attribute(self, attr):
         return self.get_attr_types(attr.value, attr.attr)
@@ -93,7 +93,7 @@ class Visitor(NodeVisitor):
         res = self.create_func(func.args, returns, func.name)
         if func.name in self.presym:
             'Yack. and probably completely wrong: memberwise-assignment'
-            self.lookup(func.name).__dict__ = res.__dict__
+            self.bind_lookups(func.name).__dict__ = res.__dict__
         else:        
             self.bind_weak(func.name, st(res))
     
@@ -106,7 +106,7 @@ class Visitor(NodeVisitor):
         builtins = {'float', 'complex', 'int'}
         if cls.name in self.presym or cls.name in builtins:
             'Yack. and probably completely wrong: memberwise-assignment'
-            self.lookup(cls.name).__dict__ = c.__dict__
+            self.bind_lookups(cls.name).__dict__ = c.__dict__
         else:
             self.bind_weak(cls.name, c)
             
@@ -164,7 +164,7 @@ class Visitor(NodeVisitor):
         if name == None:
             print('unknown Num:', ast.dump(value))
             return None
-        return Specific.factory(self.lookup(name), value.n)
+        return Specific.factory(self.bind_lookups(name), value.n)
     
     def visit_Str(self, value):
         return STR
@@ -184,7 +184,7 @@ class Visitor(NodeVisitor):
         return LIST([self.translate(i) for i in value.elts])
 
     def visit_Name(self, value):
-        return self.lookup(value.id)
+        return self.bind_lookups(value.id)
     
     def visit_NameConstant(self, cons):
         c = {None : NONE, False : FALSE, True : TRUE}

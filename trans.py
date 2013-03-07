@@ -98,7 +98,7 @@ class G_Tuple(G_expr):
     def get_names(self):
         return set()
 
-                     
+from itertools import chain                     
 _anything = lambda n : True
 def walk(node, to_extend=_anything, to_yield=_anything):
     """
@@ -126,7 +126,7 @@ def walk_shallow(root, to_yield=_anything):
 def walk_shallow_instanceof(node, tt):
     yield from walk_shallow(node, to_yield=lambda n : isinstance(n, tt))
     
-   
+
 class G_def(G_stmt):
     def __init__(self, *params):
         super().__init__(*params)
@@ -134,6 +134,10 @@ class G_def(G_stmt):
         self.bindings = set()
         self.global_names = set()
         self.nonlocal_names = set()
+    
+    def init(self):
+        self.target=translate(ast.Name(id=self.name, ctx=ast.Store()))
+        self.target.parent = self
         
     def add_name(self, name):
         self.names.add(name)
@@ -141,9 +145,9 @@ class G_def(G_stmt):
     def print_names(self):
         print(self.name, ':', self.names)
         
-    def find_nonlocal_bindings(self, name_to_namespace):
-        nonlocal_statements = walk_shallow_instanceof(self, G_Nonlocal)
-        for s in nonlocal_statements:
+    def bind_nonlocals(self, name_to_namespace):
+        cp = name_to_namespace.copy()
+        for s in walk_shallow_instanceof(self, G_Nonlocal):
             relevant = lambda k : (
                         isinstance(k, G_Name)
                         and k.id in s.names
@@ -151,15 +155,25 @@ class G_def(G_stmt):
             for n in walk_shallow(self, relevant):
                 target = name_to_namespace.get(n.id)
                 if target is not None:
+                    assert target is not self
                     n.refers = target
                 else:
                     error('unbound nonlocal', n.id)
             for n in walk_shallow_instanceof(self, G_arg):
                 if n.arg in s.names:
                     error('nonlocal {0} is argument'.format(n.arg))
+        assert name_to_namespace == cp
         #done nonlocal.
 
-    def lookup(self, name_to_namespace):
+    def shallow_bind_locals(self, name_to_namespace):
+        names = walk_shallow_instanceof(self, G_SName)
+        defs = (i.target for i in walk_shallow_instanceof(self, G_def))
+        for n in chain(names, defs):
+            if n.refers is None:
+                n.refers = self
+                name_to_namespace[n.id]=self
+
+    def bind_lookups(self, name_to_namespace):
         lookup = dict.fromkeys(self.module.names, self.module)
         lookup.update(name_to_namespace)
         for n in walk_shallow_instanceof(self, G_LName):
@@ -175,15 +189,13 @@ class G_Module(G_def, G_mod):
         super().__init__(*params)
         
     def find_global_binding(self):
-        names = set(walk_shallow_instanceof(self, G_SName))
-        for n in names: 
-            n.refers = self
-        global_statements = walk_instanceof(self, G_Global)
-        for s in global_statements:
+        self.shallow_bind_locals({})
+        
+        for s in walk_instanceof(self, G_Global):
             nsp = s.get_enclosing(G_def)
-            relevant = lambda k : isinstance(k, G_Name) and k.id in s.names
-            for n in walk_shallow(nsp, relevant):
-                n.refers = self
+            for n in walk_shallow_instanceof(nsp, G_Name):
+                if n.id in s.names:
+                    n.refers = self
             for n in walk_shallow_instanceof(nsp, G_arg):
                 if n.arg in s.names:
                     error('global {0} is argument'.format(n.arg))
@@ -192,52 +204,37 @@ class G_Module(G_def, G_mod):
             n.module = self
         #assert: no more globals bindings to handle.
     
-    def find_nonglobal_binding(self):
-        """searches in inner definitions for both local and nonlocal.
-        here we just make sure there aren't any nonlocals"""
+    def bind_nonglobals(self):
         for e in walk_shallow_instanceof(self, G_Nonlocal):
             error('global nonlocal declaration:', e)
         for d in walk_shallow_instanceof(self, G_def):
-            #we pass recursively dict<str:G_def> for nonlocal references.
-            #it is empty for the global namespace
-            d.find_nonglobal_binding({})
+            d.bind_nonglobals({})
         self.print_names()
                        
 class G_ClassDef(G_def):
-       
-    def find_nonglobal_binding(self, name_to_namespace):
+    def bind_nonglobals(self, name_to_namespace):
         for d in walk_shallow_instanceof(self, G_def):
             #here we *do not* pass our local vars
-            d.find_nonglobal_binding(name_to_namespace.copy())
+            d.bind_nonglobals(name_to_namespace.copy())
             
-        self.find_nonlocal_bindings(name_to_namespace)
-        #now find locals
-        for n in walk_shallow_instanceof(self, G_SName):
-            if n.refers is None:
-                n.refers = self
-                name_to_namespace[n.id]=self
-            
-        self.lookup(name_to_namespace)
+        self.bind_nonlocals(name_to_namespace)
+        self.shallow_bind_locals(name_to_namespace)
+        self.bind_lookups(name_to_namespace)
         self.print_names()
         
-            
                    
 class G_FunctionDef(G_def):    
-    def find_nonglobal_binding(self, name_to_namespace):
-        self.find_nonlocal_bindings(name_to_namespace)
-
-        self.names = set(i.arg for i in walk_shallow_instanceof(self, G_arg))        
-        #now find locals
-        for n in walk_shallow_instanceof(self, G_SName):
-            if n.refers is None:
-                #otherwise it is global
-                n.refers = self
-                name_to_namespace[n.id]=self
-                
-        self.lookup(name_to_namespace)
+    def bind_nonglobals(self, name_to_namespace):
+        self.bind_nonlocals(name_to_namespace)
+        
+        self.names = set(i.arg for i in walk_shallow_instanceof(self, G_arg))
+        
+        self.shallow_bind_locals(name_to_namespace)
+        self.bind_lookups(name_to_namespace)
         
         for d in walk_shallow_instanceof(self, G_def):
-            d.find_nonglobal_binding(name_to_namespace.copy())
+            d.bind_nonglobals(name_to_namespace.copy())
+            
         self.print_names()
         
 def translate(node, parent=None):
@@ -262,7 +259,7 @@ def translate(node, parent=None):
 def build_dataflow(node):
     gast = translate(node)
     gast.find_global_binding()
-    gast.find_nonglobal_binding()
+    gast.bind_nonglobals()
     return gast
 
 class G_Or(G_boolop): pass

@@ -33,7 +33,7 @@ class InstanceInterface:
     def call(self, args:list):
         raise NotImplementedError()
     
-    def lookup(self, name:str):
+    def bind_lookups(self, name:str):
         raise NotImplementedError()
     
     def bind(self, obj):
@@ -58,7 +58,7 @@ class AnyType(InstanceInterface):
     def call(self, args):
         return self
     
-    def lookup(self, name):
+    def bind_lookups(self, name):
         return self
 
     def tostr(self):
@@ -113,8 +113,8 @@ class TypeSet(InstanceInterface):
     def call(self, args:list):
         return joinall(t.call(args) for t in self.types)
     
-    def lookup(self, name:str):
-        return joinall(t.lookup(name) for t in self.types)
+    def bind_lookups(self, name:str):
+        return joinall(t.bind_lookups(name) for t in self.types)
 
     def readjust(self, other):
         self.types = other.types
@@ -161,10 +161,10 @@ class Instance(InstanceInterface):
         self.sym = sym
         
     def call(self, args):
-        return self.lookup('__call__').call(args)
+        return self.bind_lookups('__call__').call(args)
     
-    def lookup(self, name):
-        return join(self.sym[name], self.mytype.lookup(name).bind_parameter(self))
+    def bind_lookups(self, name):
+        return join(self.sym[name], self.mytype.bind_lookups(name).bind_parameter(self))
     
     def tostr(self):
         return self.get_type().name
@@ -193,8 +193,8 @@ class Specific(Instance):
     def get_unspecific(self):
         return self.get_type().instance
 
-    def lookup(self, name:str):
-        return self.get_unspecific().lookup(self, name)
+    def bind_lookups(self, name:str):
+        return self.get_unspecific().bind_lookups(self, name)
 
     def bind(self, obj):
         return Instance.bind(self, obj)
@@ -217,13 +217,13 @@ class Class(Instance):
         self.instance = Instance(self)
         
     def call(self, args):
-        init = self.lookup('__init__')
+        init = self.bind_lookups('__init__')
         if not init or init.bind_parameter(self.instance).call(args):
             return self.instance
         return nts()
     
-    def lookup(self, name):
-        return join(self.sym[name], self.mytype.lookup(name).bind_parameter(self))
+    def bind_lookups(self, name):
+        return join(self.sym[name], self.mytype.bind_lookups(name).bind_parameter(self))
     
     def tostr(self):
         return self.get_type().name + '<{0}>'.format(self.name) 
@@ -243,7 +243,7 @@ class Type(Class):
     def tostr(self):
         return 'type'
 
-    def lookup(self, name):
+    def bind_lookups(self, name):
         return self.sym[name]
   
 TYPE = Type()

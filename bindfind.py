@@ -243,10 +243,10 @@ class Namespace:
             if size == mylen():
                 break
 
-    def lookup(self, name:str):
+    def bind_lookups(self, name:str):
         if name in fst(self.locals):
             return self.name
-        return self.parent.lookup(name)
+        return self.parent.bind_lookups(name)
         
     def update_lookups(self):
         for name in get_depth_lookups(self.node, 0):
@@ -254,7 +254,7 @@ class Namespace:
             if name in fst(self.global_bindings):
                 name.namespace = Namespace.globalname
             else:
-                name.namespace = self.lookup(name.id)
+                name.namespace = self.bind_lookups(name.id)
         for d in self.definitions:
             d.update_lookups()
         
@@ -293,7 +293,7 @@ class GlobalNamespace(Namespace):
     def nonlocal_update(self, name, node):
         print('nonlocal error: {0}'.format(name))
  
-    def lookup(self, name:str):
+    def bind_lookups(self, name:str):
         if name in fst(self.locals):
             return self.name
         return None
