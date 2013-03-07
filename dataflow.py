@@ -128,7 +128,7 @@ class GName(GraphNode):
         self.id = (self.namespace, node.id)
     
     def __repr__(self):
-        return str( ''.join(self.id) )
+        return str( ''.meet(self.id) )
 
 class GArg(GName):
     def __init__(self, node):
@@ -141,7 +141,7 @@ class GArg(GName):
 
 class GReturn(GraphNode):
     def __init__(self):
-        self.tyoe = None
+        self.type = None
 
     def __repr__(self):
         return 'return'
@@ -157,7 +157,7 @@ class GCall(GExpression):
         self.args = args
     
     def __repr__(self):
-        return '{0}({1})'.format(self.func, ', '.join(str(i) for i in self.args))
+        return '{0}({1})'.format(self.func, ', '.meet(str(i) for i in self.args))
 
 class GTuple(GExpression):
     def __init__(self, t):
@@ -317,10 +317,10 @@ class GraphCreator(ast.NodeVisitor):
         return GNum(t)
     
     def visit_Str(self, node):
-        return GStr(TT.TStr(node.s))
+        return GStr(TT.Str(node.s)) 
     
     def visit_Bytes(self, node):
-        return GStr(TT.TStr(node.s))
+        return GStr(TT.Str(node.s))
 
     def visit_NameConstant(self, node):
         return GConstant(node.value)
@@ -334,7 +334,7 @@ class GraphCreator(ast.NodeVisitor):
         return res
     
     def visit_Tuple(self, node):
-        return GTuple(self.makeseq(node, TT.TTuple))
+        return GTuple(self.makeseq(node, TT.Tuple))
 
     def visit_List(self, node):
         return GList(self.makeseq(node, TT.LIST))

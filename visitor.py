@@ -1,6 +1,6 @@
 #!/sbin/python3
 import ast 
-from targettypes import TypeSet, Class, Specific, ANY, st, join, joinall
+from targettypes import TypeSet, Class, Specific, ANY, st, meet, meetall
 from targettypes import BOOL, INT, FLOAT, NONE, COMPLEX, TRUE, FALSE, TYPE
 from targettypes import BYTES, TUPLE, LIST, SEQ, DICT
 from definitions import Function, Arguments
@@ -24,7 +24,7 @@ class Visitor(NodeVisitor):
     
     def make_namespaces(self, node):
         self.bindings = find_bindings(node)
-        return joinall(self.translate(n) for n in node.body)
+        return meetall(self.translate(n) for n in node.body)
 
     def visit_Module(self, node):
         assert False
@@ -123,7 +123,7 @@ class Visitor(NodeVisitor):
         return res
             
     def visit_IfExp(self, ifexp):
-        return join(self.translate(ifexp.body), self.translate(ifexp.orelse))
+        return meet(self.translate(ifexp.body), self.translate(ifexp.orelse))
     
     def visit_Subscript(self, sub):
         assert False

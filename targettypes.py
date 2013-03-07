@@ -67,14 +67,14 @@ class AnyType(InstanceInterface):
 ANY = AnyType()
  
 '''
-join(specificA, specificA)==instance(A)
-join(typeset, instance)==typeset+instance
-join(instance1, instance2)==typeset([instance1, instance2])
-join(any, *)==any 
+meet(specificA, specificA)==instance(A)
+meet(typeset, instance)==typeset+instance
+meet(instance1, instance2)==typeset([instance1, instance2])
+meet(any, *)==any 
 '''
 
 'transition function'
-def join(a, b):
+def meet(a, b):
     if b is None:               return a
     if a == b:                  return a
     if a is ANY or b is ANY:    return ANY
@@ -90,16 +90,12 @@ def join(a, b):
 '''
 type set
 '''
-
-def st(t):
-    return TypeSet({t})
-
-def nts():
+def EMPTY():
     return TypeSet({})
 
-def joinall(iterable):
+def meetall(iterable):
     from functools import reduce
-    return reduce(join, iterable, nts())
+    return reduce(meet, iterable, EMPTY())
 
 class TypeSet(InstanceInterface):
     '''Composite
@@ -111,17 +107,16 @@ class TypeSet(InstanceInterface):
         self.types = set(instances)
     
     def call(self, args:list):
-        return joinall(t.call(args) for t in self.types)
+        return meetall(t.call(args) for t in self.types)
     
     def bind_lookups(self, name:str):
-        return joinall(t.bind_lookups(name) for t in self.types)
-
+        return meetall(t.bind_lookups(name) for t in self.types)
+    '''
     def readjust(self, other):
         self.types = other.types
-
+    '''
     def bind(self, name, value):
-        for t in self.types:
-            t.bind(name, value) 
+        return meetall(t.bind(name, value) for t in self.types)
 
     def add(self, obj):
         if type(obj) == TypeSet:
@@ -148,6 +143,7 @@ class TypeSet(InstanceInterface):
         else:
             return '-'
     
+
 from symtable import SymTable
     
 class Instance(InstanceInterface):
@@ -164,7 +160,7 @@ class Instance(InstanceInterface):
         return self.bind_lookups('__call__').call(args)
     
     def bind_lookups(self, name):
-        return join(self.sym[name], self.mytype.bind_lookups(name).bind_parameter(self))
+        return meet(self.sym[name], self.mytype.bind_lookups(name).bind_parameter(self))
     
     def tostr(self):
         return self.get_type().name
@@ -220,10 +216,10 @@ class Class(Instance):
         init = self.bind_lookups('__init__')
         if not init or init.bind_parameter(self.instance).call(args):
             return self.instance
-        return nts()
+        return EMPTY()
     
     def bind_lookups(self, name):
-        return join(self.sym[name], self.mytype.bind_lookups(name).bind_parameter(self))
+        return meet(self.sym[name], self.mytype.bind_lookups(name).bind_parameter(self))
     
     def tostr(self):
         return self.get_type().name + '<{0}>'.format(self.name) 
@@ -263,7 +259,7 @@ BYTES = LIST = SEQ = DICT = ANY
 TUPLE = Class('tuple')
 
 
-class TSeq(Instance):
+class Seq(Instance):
     def __init__(self, *targs):
         self.instance_vars = SymTable()
         self.types = set(targs)
@@ -278,11 +274,11 @@ class TSeq(Instance):
     #def get_dict(self):       return {i:j for i, j in list(self.dict.items()) + list(super.get_dict(self).items())} 
 
 
-class TIter(TSeq):
+class Iter(Seq):
     def __repr__(self):
         return "Iter(" + repr(self.types) + ")"
 
-class TDict(TSeq):
+class Dict(Seq):
     def __init__(self, tkeys, tvalues):
         from itertools import product
         self.instance_vars = SymTable()   
@@ -293,7 +289,7 @@ class TDict(TSeq):
     def __repr__(self):
         return "Dict(" + repr(self.types) + ")"
 
-class TTuple(TSeq):
+class Tuple(Seq):
     def __init__(self, tvalues):
         self.types = tuple(tvalues)
             
@@ -310,15 +306,15 @@ class TTuple(TSeq):
         return repr(self.types)
 
     def __eq__(self, other):
-        return isinstance(other, TTuple) and self.types == other.types
+        return isinstance(other, Tuple) and self.types == other.types
     
     def __hash__(self):
         return hash(self.types)
     
-class TStr(TTuple):
+class Str(Tuple):
     def __init__(self, tvalues):
         self.tvalues = tvalues
-        self.types = tuple(Specific.factory(TStr, c) for c in tvalues)
+        self.types = tuple(Specific.factory(Str, c) for c in tvalues)
     
     def __repr__(self):
         return repr(self.tvalues)

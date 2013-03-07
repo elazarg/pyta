@@ -264,10 +264,10 @@ class Namespace:
             res += ':\n'
             for name in self.vars:
                 res += ' ' * (self.depth + 1) + str(name) + ' '
-                res += ', '.join(str(t[1].lineno) for t in self.locals if t[0] == name)
+                res += ', '.meet(str(t[1].lineno) for t in self.locals if t[0] == name)
                 res += '\n'
             
-        res += '\n'.join(x.tostr() for x in self.definitions)
+        res += '\n'.meet(x.tostr() for x in self.definitions)
         return res
 
 class GlobalNamespace(Namespace):
@@ -372,7 +372,7 @@ if __name__ == '__main__':
     '''
     x = Renamer()
     x.translate(fp)
-    print(*(''.join(name) for name in x.bind), sep='\n')
+    print(*(''.meet(name) for name in x.bind), sep='\n')
     print()
-    print(*(''.join(node.id) for node in x.lookups), sep='\n')
+    print(*(''.meet(node.id) for node in x.lookups), sep='\n')
     

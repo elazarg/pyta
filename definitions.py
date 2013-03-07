@@ -55,17 +55,17 @@ class Arguments():
         return True
 
     def tostr(self):
-        pos = ', '.join(self.pos)
-        defs = ', '.join('{0}={1}'.format(k,v.tostr()) for k,v in self.defs)
+        pos = ', '.meet(self.pos)
+        defs = ', '.meet('{0}={1}'.format(k,v.tostr()) for k,v in self.defs)
         varargs = None
         if self.vararg:
             varargs = '*' + self.vararg
             if self.varargannotation:
                 varargs += ':' + repr(self.varargannotation)
-        kws = ', '.join(('{0}={1}'.format(k, v.tostr()) if v else k) for k, v in zip(self.kwonlyargs, self.kw_defaults))
+        kws = ', '.meet(('{0}={1}'.format(k, v.tostr()) if v else k) for k, v in zip(self.kwonlyargs, self.kw_defaults))
         kwargs = '**' + self.kwarg if self.kwarg else None
         
-        return '({0})'.format( ', '.join(i if isinstance(i, str) else i.tostr() for i in [pos, defs, varargs, kws, kwargs, self.bind] if i) )
+        return '({0})'.format( ', '.meet(i if isinstance(i, str) else i.tostr() for i in [pos, defs, varargs, kws, kwargs, self.bind] if i) )
 
 
 FUNCTION = Class('function') 
@@ -75,11 +75,11 @@ should make distinction between types of variables in general,
 and return type of some specific execution place
 '''
 class Function(Instance):
-    def __init__(self, node, graph, retnode=None, bind = None):
+    def __init__(self, gnode, bind = None):
         # assert isinstance(typefunc, (TypeSet, type(None)))
         Instance.__init__(self, FUNCTION)
-        self.orig_args = node.args
-        self.name = node.name
+        self.orig_args = gnode.args
+        self.name = gnode.name
         self.args = Arguments(self.orig_args, bind)
     
     def tostr(self):

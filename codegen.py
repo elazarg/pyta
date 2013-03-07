@@ -78,7 +78,7 @@ def to_source(node, indent_with=' ' * 4, add_line_information=False):
     """
     generator = SourceGenerator(indent_with, add_line_information)
     generator.translate(node)
-    return ''.join(generator.result)[2:]
+    return ''.meet(generator.result)[2:]
 
 def combine(ls1, ls2):
     res = [None for _ in ls1 + ls2]
@@ -112,7 +112,7 @@ class SourceGenerator(NodeVisitor):
                 assert 2 <= len(x) <= 4
                 if len(x) == 2: x += (None, None)
                 if len(x) == 3: x = (None,) + x
-                pre, key, join, val = x
+                pre, key, meet, val = x
                 if key is None:
                     continue
             
@@ -131,7 +131,7 @@ class SourceGenerator(NodeVisitor):
                 putsep = False
                 continue
             elif isinstance(x, tuple):
-                self.write(pre, key, join if val else None, val, sep='')
+                self.write(pre, key, meet if val else None, val, sep='')
             else:
                 self.result.append(x)
                 
