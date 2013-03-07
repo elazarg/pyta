@@ -6,11 +6,10 @@ Created on Jan 23, 2013
 
 import targettypes as types
 class SymTable:
-    #constants = {'None' : st(NONE), 'False' : st(BOOL), 'True' : st(BOOL)}
     def __init__(self):
         self.vars =  {}
     
-    def bind(self, var_id, anInstance):
+    def bind_type(self, var_id, anInstance):
         assert isinstance(var_id, str)
         assert anInstance is not None
         

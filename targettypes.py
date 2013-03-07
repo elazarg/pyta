@@ -79,7 +79,8 @@ def meet(a, b):
     if a == b:                  return a
     if a is ANY or b is ANY:    return ANY
 
-    if type(a.get_unspecific()) == type(b.get_unspecific()) and type(a) == Specific:
+    if (type(a.get_unspecific()) == type(b.get_unspecific()) and
+         (type(a) == Specific or type(b) == Specific)):
         return a.get_unspecific()
 
     if issubclass(type(a), Instance) and issubclass(type(b), Instance):
@@ -163,13 +164,13 @@ class Instance(InstanceInterface):
         return meet(self.sym[name], self.mytype.bind_lookups(name).bind_parameter(self))
     
     def tostr(self):
-        return self.get_type().name
+        return self.mytype.name
     
     def get_type(self):
         return self.mytype
     
     def bind(self, name, value):
-        self.sym.bind(name, value) 
+        self.sym.bind_type(name, value) 
 
     
 class Specific(Instance):
@@ -204,10 +205,9 @@ class Specific(Instance):
 TYPECONT = [None]
     
 class Class(Instance):
-    def __init__(self, name:str, sym:SymTable=None):
+    def __init__(self, name:str, sym=None):
         if sym is None: sym = SymTable()
         assert type(name) is str and type(sym) is SymTable
-        sym.bind(name, self)
         self.name = name
         Instance.__init__(self, TYPECONT[0], sym)
         self.instance = Instance(self)
@@ -257,19 +257,22 @@ NONE = Specific.factory(Class('NoneType'), None)
 BYTES = LIST = SEQ = DICT = ANY
 
 TUPLE = Class('tuple')
-
+STR = Class('str')
 
 class Seq(Instance):
-    def __init__(self, *targs):
+    def __init__(self, targs):
         self.instance_vars = SymTable()
-        self.types = set(targs)
+        super().__init__(TypeSet(targs))
     
     def split_to(self, n):
         'should it be a copy?'
-        return [self.types] * n
+        return [self.mytype] * n
     
+    def get_meet_all(self):
+        return self.mytype
+        
     def __repr__(self):
-        return "Seq(" + repr(self.types) + ")"
+        return "Seq(" + repr(self.mytype) + ")"
 
     #def get_dict(self):       return {i:j for i, j in list(self.dict.items()) + list(super.get_dict(self).items())} 
 
@@ -291,37 +294,46 @@ class Dict(Seq):
 
 class Tuple(Seq):
     def __init__(self, tvalues):
-        self.types = tuple(tvalues)
+        self.tupletypes = tuple(tvalues)
+        super().__init__(self.tupletypes)
+        self.type = TUPLE
             
+    def tostr(self):
+        return repr(self.tupletypes)
+    
     def __len__(self):
-        return len(self.types)
+        return len(self.tupletypes)
  
     def split_to(self, n):
-        if len(self.types) == n:
-            return self.types
+        if len(self.tupletypes) == n:
+            return self.tupletypes
         else:
             return tuple([TypeSet() for _ in range(n)])  
  
     def __repr__(self):
-        return repr(self.types)
+        return repr(self.tupletypes)
 
     def __eq__(self, other):
-        return isinstance(other, Tuple) and self.types == other.types
+        return type(self) is type(other) and self.tupletypes == other.tupletypes
     
     def __hash__(self):
-        return hash(self.types)
+        return hash(self.tupletypes)
     
 class Str(Tuple):
-    def __init__(self, tvalues):
-        self.tvalues = tvalues
-        self.types = tuple(Specific.factory(Str, c) for c in tvalues)
+    def __init__(self, string):
+        self.tvalues = string
+        self.settypes = tuple(Specific.factory(STR, c) for c in string)
+        super().__init__(self.settypes)
+        self.type = STR
     
     def __repr__(self):
         return repr(self.tvalues)
 
     def __eq__(self, other):
-        return self.tvalues == other.tvalues
+        return type(other) is Str and self.tvalues == other.tvalues
     
     def __hash__(self):
-        return hash(self.types)
+        return hash(self.settypes)
         
+    def tostr(self):
+        return repr(self.tvalues)

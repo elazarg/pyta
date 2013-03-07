@@ -52,14 +52,12 @@ class G_AST(ast.AST):
         pass
     
 class G_slice(G_AST): pass
-class G_arg(G_AST): pass
 class G_mod(G_AST): pass
 class G_comprehension(G_AST): pass
 class G_keyword(G_AST): pass
 class G_unaryop(G_AST): pass
 class G_operator(G_AST): pass
 class G_expr_context(G_AST): pass
-class G_arguments(G_AST): pass
 class G_cmpop(G_AST): pass
 class G_excepthandler(G_AST): pass
 class G_withitem(G_AST): pass
@@ -102,7 +100,7 @@ class G_Name(G_expr):
     
     @classmethod
     def create(self, node, parent):
-        node._fields = ['id']
+        node._fields = ('id',)
         if isinstance(node.ctx, ast.Store):
             res = G_SName(node, parent)
         else:
@@ -115,23 +113,48 @@ class G_SName(G_Name):
         self._refers.add_name(self.id)
         
     def update_type(self, newtype):
-        #should be called from "Assign", for instance
-        print(self.id, newtype.tostr())        
-        self._refers.update_type(self.id, newtype)
+        # should be called from "Assign", for instance
+        self.type = meet(self.type, newtype)
+        self._refers.update_sym(self.id, newtype)
         
     refers = property(G_Name.get_refers, set_refers)        
         
 class G_LName(G_Name):
-    
+    '''
     def update_type(self, newtype):
         #should be called from a definition (or a definition-instance)
         oldtype = self.type
         self.type = meet(self.type, newtype)
-        #print(oldtype, newtype)
-        if oldtype != newtype:
+        if oldtype != self.type:
             world.changed()
+    '''
+    def get_current_type(self):
+        return self._refers.sym[self.id]
+    
+class G_arg(G_SName):
+    @classmethod
+    def create(self, node, parent):
+        node._fields = ('id', 'annotation')
+        return G_arg(node, parent)
+    
+    def __init__(self, node, parent):
+        self.id = node.arg
+        super().__init__(node, parent)
         
-
+class G_Tuple(G_expr):
+    # rvalue only. todo: lvalues
+    def get_names(self):
+        return set()
+    
+    def get_current_type(self):
+        return TT.Tuple(n.get_current_type() for n in self.elts)  
+ 
+    def update_type(self, newtype):
+        # should be called from "Assign", for instance
+        seq = newtype.split_to(len(self.elts))
+        for target, value in zip(self.elts, seq):
+            target.update_type(value)
+    
 class G_Assign(G_stmt):
     '''for now, it will be passing around types methodically.
     no actual edge will be placed.'''
@@ -140,6 +163,13 @@ class G_Assign(G_stmt):
             val = self.value.get_current_type()
             n.update_type(val)
             
+
+class G_For(G_stmt):
+    def execute(self):
+        val = self.iter.get_current_type()
+        if isinstance(val, TT.Seq):
+            self.target.update_type(val.get_meet_all())
+
                       
 _anything = lambda n : True
 def walk(node, to_extend=_anything, to_yield=_anything):
@@ -176,19 +206,21 @@ class G_def(G_stmt):
         'all active bindings'
         self.names = set()
         
-        'all bindings, including lookups'
+        'all bindings (id->Name), including lookups'
         self.bindings = {}
-    
+        
+        from symtable import SymTable
+        'all bindings (id->type)'
+        self.sym = SymTable()
     
     def set_single_bind(self, name):
-        print('s', ast.dump(name))
         self.bindings.setdefault(name.id, set()).add(name)
             
     def init(self):
-        self.target=translate(ast.Name(id=self.name, ctx=ast.Store()))
+        self.target = translate(ast.Name(id=self.name, ctx=ast.Store()))
         self.target.parent = self
         
-        self.arg_ids = {i.arg for i in walk_shallow_instanceof(self, G_arg)}
+        self.arg_ids = {i.id for i in walk_shallow_instanceof(self, G_arg)}
         self.local_defs = list(walk_shallow_instanceof(self, G_def))
         nonlocals = walk_shallow_instanceof(self, G_Nonlocal)
         self.nonlocal_ids = set(sum([i.names for i in nonlocals], []))
@@ -202,7 +234,7 @@ class G_def(G_stmt):
         
     def bind_nonlocals(self, name_to_namespace):
         
-        #add: find kwarg and vararg
+        # add: find kwarg and vararg
         for k in self.arg_ids.intersection(self.nonlocal_ids):
             error('nonlocal {0} is argument'.format(k))
             
@@ -215,7 +247,7 @@ class G_def(G_stmt):
                 error('unbound nonlocal', n.id)
             assert target is not self
             n.refers = target
-        #done nonlocal.
+        # done nonlocal.
 
     def shallow_bind_locals(self, name_to_namespace):
         from itertools import chain
@@ -225,7 +257,7 @@ class G_def(G_stmt):
         for n in chain(names, defs):
             if n.refers is None:
                 n.refers = self
-                name_to_namespace[n.id]=self
+                name_to_namespace[n.id] = self
 
     def bind_lookups(self, name_to_namespace):
         lookup = dict.fromkeys(self.module.names, self.module)
@@ -233,7 +265,10 @@ class G_def(G_stmt):
         for n in walk_shallow_instanceof(self, G_LName):
             target = lookup.get(n.id)
             if target is None:
-                error('unbound variable', n.id)
+                if n.id in self.module.builtins.names:
+                    target = self.module.builtins
+                else:
+                    error('unbound variable', n.id)
             n.refers = target
 
     def bind_globals(self, names):
@@ -243,55 +278,87 @@ class G_def(G_stmt):
         for n in self.arg_ids.intersection(names):
             error('global {0} is argument'.format(n))
         
-    def update_type(self, name, newtype):
-        print('m', self.bindings[name])
+    def update_sym(self, name, newtype):
+        self.sym.bind_type(name, newtype)
+        '''
         for n in self.bindings[name]:
             if isinstance(n, G_LName):
                 n.update_type(newtype)
-        
+        '''
+    def get_fully_qualified_name(self):
+        return self.get_enclosing(G_def).get_fully_qualified_name() + '.' + self.name
+    
+    def print_types(self):
+        print(self.get_fully_qualified_name(), ':')
+        for m in self.names:
+            alltypes = [n.get_current_type() for n in self.bindings.get(m, {}) ]
+            print(m, TT.meetall(alltypes).tostr())
+        print()
+        for n in walk_shallow_instanceof(self, (G_ClassDef, G_FunctionDef)):
+            n.print_types()           
+            
+class G_Builtins(G_def):
+    def __init__(self, *params):
+        self.name = 'builtins'
+        super().__init__(*params)
+        self.names = {'print'}
+        self.bindings = {'print':set()}
+
 class G_Module(G_def, G_mod):
     def __init__(self, *params):
-        self.name='__main__'
+        self.name = '__main__'
         super().__init__(*params)
+        self.builtins = G_Builtins(*params)
         
     def init(self):
         super().init()
         for n in walk_instanceof(self, G_def):
             n.module = self
             
+            
+    def get_fully_qualified_name(self):
+        return self.name     
+       
     def execute_all(self):
-        for i in range(3):
-            for n in walk_shallow_instanceof(self, G_Assign):
+        for _ in range(3):
+            for n in walk_instanceof(self,
+                     (G_Assign, G_ClassDef, G_FunctionDef, G_For)):
                 n.execute()
-        for n in walk_shallow_instanceof(self, G_LName):
-            print(n.id, n.get_current_type().tostr())
+            # if not world.changed():                break
+        self.print_types()
             
     def bind_globals(self):
         self.shallow_bind_locals({})
-        #we look first for *all* global bindings, because these can happen anywhere
-        #unlike nonlocals, which are more like simple lookups
+        # we look first for *all* global bindings, because these can happen anywhere
+        # unlike nonlocals, which are more like simple lookups
         for s in walk_instanceof(self, G_Global):
             s.get_enclosing(G_def).bind_globals(s.names)
         self.bind_lookups({})
-        #assert: no more globals bindings to handle.
+        # assert: no more globals bindings to handle.
     
     def bind_nonglobals(self):
         for e in self.nonlocal_ids:
             error('global nonlocal declaration:', e)
         for d in self.local_defs:
             d.bind_nonglobals({})
-        self.print_names()
+        # self.print_names()
                        
 class G_ClassDef(G_def):
     def bind_nonglobals(self, name_to_namespace):
         for d in self.local_defs:
-            #here we *do not* pass our local vars
+            # here we *do not* pass our local vars
             d.bind_nonglobals(name_to_namespace.copy())
         self.bind_nonlocals(name_to_namespace)
         self.shallow_bind_locals(name_to_namespace)
         self.bind_lookups(name_to_namespace)
-        self.print_names()
-        
+        # self.print_names()
+    
+    def init(self):
+        super().init()
+        self.type = TT.Class(self.name, self.sym)
+    
+    def execute(self):
+        self.target.update_type(self.type)
                               
 class G_FunctionDef(G_def):    
     def bind_nonglobals(self, name_to_namespace):
@@ -301,9 +368,104 @@ class G_FunctionDef(G_def):
         self.bind_lookups(name_to_namespace)
         for d in self.local_defs:
             d.bind_nonglobals(name_to_namespace.copy())
-        self.print_names()
+        # self.print_names()
+
+    def init(self):
+        super().init()
+        from definitions import Function
+        self.type = Function(self)
+        #for n in walk_shallow_instanceof(self, G_Return):            print(ast.dump(n))
+    
+    def execute(self):
+        self.target.update_type(self.type)
+                        
+    def bind_arguments(self, dic):
+        for arg in walk_shallow_instanceof(self, G_arg):
+            arg.update_type(dic[arg.id])
+            
+class G_Return(G_Assign):  # instead of inheriting g_stmt
+    def __init__(self, *params):
+        super().__init__(*params)
+        self.targets = [translate(ast.Name(id='return', ctx=ast.Store()))]
+        self._fields += ('targets',)
+
+class G_Call(G_expr):
+    def get_current_type(self):
+        t = self.func.get_current_type()
+        print('calling:',t.tostr())
+        return t.call(self)
+
+class G_arguments(G_AST):
+    def init(self):   
+        super().init()
+          
+        rearg = [i.id for i in self.args]
+        size = len(self.defaults)
+        self.pos = rearg[:-size] if size > 0 else rearg
+        '''
+        self.bind = b
+        if b is not None:
+            del self.pos[0]
+        '''
+        self.defs = list(zip(rearg[-size:] , self.defaults))
+        #self.kwonlyargs = [i.arg for i in args.kwonlyargs]
+        
+        self.bind = set(rearg + [self.vararg] + self.kwonlyargs + [self.kwarg])  
+    '''
+    def with_bind(self, t):
+        return Arguments(self.arg, t)
+    ''' 
+    def match(self, actual):
+        bind = {}
+        bind.update(zip(self.pos, [x.get_current_type() for x in actual.args]))
+        for keyword in actual.keywords:
+            if keyword.arg in bind:
+                # double assignment
+                error('double assignment: ', keyword.arg)
+                return None
+            bind[keyword.arg] = keyword.value.get_current_type()
+        bind.update([(k, v.get_current_type()) for k, v in self.defs])                        
+        leftover = set(self.pos) - set(bind.keys())
+        if len(leftover) > 0:
+            # positional parameter left
+            error('positional parameter left:', leftover)
+            return None
+        for k, v in zip(self.kwonlyargs, self.kw_defaults):
+            if k not in bind and v != None:
+                bind[k] = v
+        leftover_keys = set(self.kwonlyargs).difference(bind.keys())
+        if len(leftover_keys) > 0:
+            # keyword-only parameter left
+            error('keyword-only parameter left:', leftover_keys)
+            return None
+        spare_keywords = set(bind.keys()) - self.bind
+        if self.kwarg == None and len(spare_keywords) > 0:
+            # keyword-only parameter left
+            error('too many keyword arguments', spare_keywords)
+            return None           
+        #print([(k,v.tostr()) for k,v in bind.items()])
+        return bind
+
+    def tostr(self):
+        pos = ', '.join(self.pos)
+        defs = ', '.join('{0}={1}'.format(k,v.get_current_type().tostr()) for k,v in self.defs)
+        varargs = None
+        if self.vararg:
+            varargs = '*' + self.vararg
+            if self.varargannotation:
+                varargs += ':' + repr(self.varargannotation)
+        kws = ', '.join(('{0}={1}'.format(k, v.tostr()) if v else k) for k, v in zip(self.kwonlyargs, self.kw_defaults))
+        kwargs = '**' + self.kwarg if self.kwarg else None
+        
+        return '({0})'.format( ', '.join(
+                             i if isinstance(i, str) else i.tostr()
+                             for i in [pos, defs, varargs, kws, kwargs,
+                                       #     self.bind
+                                       ]
+                             if i) )
 
 
+    
 class G_Or(G_boolop): pass
 class G_And(G_boolop): pass
 
@@ -311,14 +473,11 @@ class G_ExtSlice(G_slice): pass
 class G_Index(G_slice): pass
 class G_Slice(G_slice): pass
 
-
-
 class G_ExceptHandler(G_excepthandler): pass
-class G_For(G_stmt): pass
+
 class G_AugAssign(G_stmt): pass
 class G_ImportFrom(G_stmt): pass
 class G_With(G_stmt): pass
-class G_Return(G_stmt): pass
 class G_Import(G_stmt): pass
 
 class G_Expr(G_stmt): pass
@@ -335,21 +494,16 @@ class G_Raise(G_stmt): pass
 
 class G_Global(G_stmt): pass
 class G_Nonlocal(G_stmt): pass
-
-class G_Tuple(G_expr):
-    def get_names(self):
-        return set()
     
 class G_Set(G_expr): pass
 class G_Ellipsis(G_expr): pass
 class G_Subscript(G_expr): pass
 class G_BinOp(G_expr): pass
 class G_IfExp(G_expr): pass
-#class G_Name(G_expr): pass
-#class G_Tuple(G_expr): pass
+# class G_Name(G_expr): pass
+# class G_Tuple(G_expr): pass
 class G_UnaryOp(G_expr): pass
 class G_Dict(G_expr): pass
-class G_Call(G_expr): pass
 class G_Starred(G_expr): pass
 class G_Lambda(G_expr): pass
 class G_GeneratorExp(G_expr): pass
@@ -411,27 +565,28 @@ def build_dataflow(node):
     return gast
 
 def test_binding():
-    x=ast.parse(open('test/bindings.py').read())
+    x = ast.parse(open('test/bindings.py').read())
     return build_dataflow(x)
     
 def test_dataflow():
-    x=ast.parse(open('test.py').read())
-    g=build_dataflow(x)    
+    x = ast.parse(open('test.py').read())
+    g = build_dataflow(x)    
     g.execute_all()
     
-if __name__=='__main__':
+if __name__ == '__main__':
+    # test_binding()
     test_dataflow()
 
 
-#unknowns or uninteresting:
+# unknowns or uninteresting:
 class G_v(G_mod): pass
 class G_Suite(G_mod): pass
-#class G_Module(G_mod): pass
+# class G_Module(G_mod): pass
 class G_Expression(G_mod): pass
 class G_Interactive(G_mod): pass
 
     
-#unknowns:
+# unknowns:
 class G_Del(G_expr_context): pass
 class G_Load(G_expr_context): pass
 class G_Param(G_expr_context): pass
@@ -440,7 +595,7 @@ class G_AugLoad(G_expr_context): pass
 class G_AugStore(G_expr_context): pass
 
 
-#these can probably canonicalized away:
+# these can probably canonicalized away:
 
 class G_Add(G_operator): pass
 class G_Div(G_operator): pass
