@@ -1,4 +1,4 @@
-from targettypes import Instance, Class, TypeSet, ANY
+from targettypes import Instance, Class, TypeSet
 
 
 FUNCTION = Class('function') 
@@ -8,10 +8,11 @@ should make distinction between types of variables in general,
 and return type of some specific execution place
 '''
 class Function(Instance):
-    def __init__(self, gnode, bind = None):
+    def __init__(self, gnode, bound_arg=None):
         # assert isinstance(typefunc, (TypeSet, type(None)))
         Instance.__init__(self, FUNCTION)
         self.gnode = gnode
+        self.bound_arg = bound_arg
     
     def tostr(self):
         ret = self.gnode.sym['return']
@@ -30,7 +31,7 @@ class Function(Instance):
         return res
         
     def call(self, actual_args):
-        dic = self.gnode.args.match(actual_args)
+        dic = self.gnode.args.match(actual_args, self.bound_arg)
         if dic is None:
             return TypeSet({})
         self.gnode.bind_arguments(dic)

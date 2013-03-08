@@ -75,10 +75,11 @@ meet(any, *)==any
 
 'transition function'
 def meet(a, b):
-    if b is None:               return a
+    if b == EMPTY():              return a
+    if a == EMPTY():              return b
     if a == b:                  return a
     if a is ANY or b is ANY:    return ANY
-
+    
     if (type(a.get_unspecific()) == type(b.get_unspecific()) and
          (type(a) == Specific or type(b) == Specific)):
         return a.get_unspecific()
@@ -86,7 +87,8 @@ def meet(a, b):
     if issubclass(type(a), Instance) and issubclass(type(b), Instance):
         return TypeSet([a, b])
     
-    return a + b
+    res = a + b
+    return res
  
 '''
 type set
@@ -121,10 +123,20 @@ class TypeSet(InstanceInterface):
 
     def add(self, obj):
         if type(obj) == TypeSet:
-            self.types.update(obj.types)
+            for i in obj.types:
+                self.add(i)
         else:
-            self.types.add(obj)
-    
+            others = set()
+            while len(self.types) > 0:
+                s = self.types.pop()
+                res = meet(s, obj)
+                if not isinstance(res, TypeSet):
+                    self.types.add(res)
+                    self.types.update(others)
+                    return
+                others.add(s)
+            self.types.update(others.union({obj}))
+            
     def __add__(self, obj):
         'not mutating'
         res = TypeSet(self.types)
@@ -138,6 +150,15 @@ class TypeSet(InstanceInterface):
     def __bool__(self):
         return len(self.types) > 0
 
+    def isempty(self):
+        return len(self.types) > 0
+    
+    def __eq__(self, other):
+        if isinstance(other, TypeSet):
+            return self.types == other.types
+        else:    
+            return len(self.types) == 1 and {other} == self.types
+        
     def tostr(self):
         if self:
             return 'T{' + '{0}'.format(', '.join([t.tostr() for t in self.types])) + '}'
@@ -201,9 +222,9 @@ class Specific(Instance):
     
     def __repr__(self):
         return self.tostr()
-    
+
 TYPECONT = [None]
-    
+
 class Class(Instance):
     def __init__(self, name:str, sym=None):
         if sym is None: sym = SymTable()
@@ -214,9 +235,13 @@ class Class(Instance):
         
     def call(self, args):
         init = self.bind_lookups('__init__')
-        if not init or init.bind_parameter(self.instance).call(args):
+        if not init:
+            if len(args.args)==0:
+                return self.instance
+            return EMPTY()
+        if init.bind_parameter(self.instance).call(args):
             return self.instance
-        return EMPTY()
+        return EMPTY() 
     
     def bind_lookups(self, name):
         return meet(self.sym[name], self.mytype.bind_lookups(name).bind_parameter(self))
@@ -254,9 +279,10 @@ TRUE = Specific.factory(BOOL, True)
 FALSE = Specific.factory(BOOL, False)
 NONE = Specific.factory(Class('NoneType'), None)
 
-BYTES = LIST = SEQ = DICT = ANY
+BYTES = SEQ = DICT = ANY
 
 TUPLE = Class('tuple')
+LIST = Class('list')
 STR = Class('str')
 
 class Seq(Instance):
@@ -274,7 +300,7 @@ class Seq(Instance):
     def __repr__(self):
         return "Seq(" + repr(self.mytype) + ")"
 
-    #def get_dict(self):       return {i:j for i, j in list(self.dict.items()) + list(super.get_dict(self).items())} 
+    # def get_dict(self):       return {i:j for i, j in list(self.dict.items()) + list(super.get_dict(self).items())} 
 
 
 class Iter(Seq):
@@ -337,3 +363,16 @@ class Str(Tuple):
         
     def tostr(self):
         return repr(self.tvalues)
+    
+class List(Tuple):
+    def __init__(self, tvalues):
+        self.tupletypes = list(tvalues)
+        super().__init__(self.tupletypes)
+        self.tupletypes = list(tvalues)
+        self.type = List
+            
+    def tostr(self):
+        return repr(self.tupletypes)
+ 
+    def __repr__(self):
+        return repr(self.tupletypes)

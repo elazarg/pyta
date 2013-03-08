@@ -4,12 +4,37 @@ Created on Mar 6, 2013
 @author: elazar
 '''
 
+'''
+TODO:
+* add class instantiation
+* add lambda inlining
+* find end condition
+* limited suppor for list comprehension
+* better builtins
+* support finite sequences
+* fix set/meet bug
+
+--
+* constrained attribute assignment
+* list tainting
+* dictionary support
+* set support
+* function inlining
+
+--
+* general mudolarization and design-level cleanup 
+* general code-level cleanup
+* basic documentation
+'''
+
 import ast
 import targettypes as TT
 from targettypes import EMPTY, meet
  
-error = print
-
+messages=[]
+def error(*x):
+    if x not in messages:
+        messages.append(x)
 
 class world:
     _change = True
@@ -142,7 +167,6 @@ class G_arg(G_SName):
         super().__init__(node, parent)
         
 class G_Tuple(G_expr):
-    # rvalue only. todo: lvalues
     def get_names(self):
         return set()
     
@@ -233,7 +257,6 @@ class G_def(G_stmt):
         print(self.name, ':', self.names)
         
     def bind_nonlocals(self, name_to_namespace):
-        
         # add: find kwarg and vararg
         for k in self.arg_ids.intersection(self.nonlocal_ids):
             error('nonlocal {0} is argument'.format(k))
@@ -320,9 +343,10 @@ class G_Module(G_def, G_mod):
         return self.name     
        
     def execute_all(self):
-        for _ in range(3):
-            for n in walk_instanceof(self,
-                     (G_Assign, G_ClassDef, G_FunctionDef, G_For)):
+        for _ in range(9):
+            for n in walk_instanceof(self, (G_FunctionDef, G_ClassDef)):
+                n.execute()
+            for n in walk_instanceof(self, (G_Assign, G_For)):
                 n.execute()
             # if not world.changed():                break
         self.print_types()
@@ -360,6 +384,12 @@ class G_ClassDef(G_def):
     def execute(self):
         self.target.update_type(self.type)
                               
+class G_Attribute(G_expr):
+    def get_current_type(self):
+        val = self.value.get_current_type()
+        return val.bind_lookups(self.attr)
+
+
 class G_FunctionDef(G_def):    
     def bind_nonglobals(self, name_to_namespace):
         self.bind_nonlocals(name_to_namespace)
@@ -392,11 +422,17 @@ class G_Return(G_Assign):  # instead of inheriting g_stmt
 class G_Call(G_expr):
     def get_current_type(self):
         t = self.func.get_current_type()
-        print('calling:',t.tostr())
+        #print('calling:',t.tostr())
         return t.call(self)
 
 class G_arguments(G_AST):
     def init(self):   
+        if self.vararg:
+            self.vararg = translate(ast.arg(self.vararg, self.varargannotation))
+            self.vararg.parent = self
+        if self.kwarg:
+            self.kwarg = translate(ast.arg(self.kwarg, self.kwargannotation))        
+            self.kwarg.parent = self
         super().init()
           
         rearg = [i.id for i in self.args]
@@ -407,42 +443,47 @@ class G_arguments(G_AST):
         if b is not None:
             del self.pos[0]
         '''
-        self.defs = list(zip(rearg[-size:] , self.defaults))
-        #self.kwonlyargs = [i.arg for i in args.kwonlyargs]
+        self.kwonlyargs = [i.id for i in self.kwonlyargs]
         
+        self.defs = list(zip(rearg[-size:] , self.defaults))
         self.bind = set(rearg + [self.vararg] + self.kwonlyargs + [self.kwarg])  
     '''
     def with_bind(self, t):
         return Arguments(self.arg, t)
     ''' 
-    def match(self, actual):
+    def match(self, actual, bound_arg=None):
         bind = {}
-        bind.update(zip(self.pos, [x.get_current_type() for x in actual.args]))
+        if bound_arg is not None:
+            bind[self.pos[0]]=bound_arg
+            pos = self.pos[1:]
+        else:
+            pos = self.pos[:]
+        bind.update(zip(pos, [x.get_current_type() for x in actual.args]))
+        i=0
         for keyword in actual.keywords:
             if keyword.arg in bind:
                 # double assignment
                 error('double assignment: ', keyword.arg)
                 return None
             bind[keyword.arg] = keyword.value.get_current_type()
-        bind.update([(k, v.get_current_type()) for k, v in self.defs])                        
-        leftover = set(self.pos) - set(bind.keys())
+            i+=1
+        bind.update([(k, v.get_current_type()) for k, v in self.defs[i:]])                        
+        leftover = set(pos) - set(bind.keys())
         if len(leftover) > 0:
-            # positional parameter left
             error('positional parameter left:', leftover)
             return None
         for k, v in zip(self.kwonlyargs, self.kw_defaults):
-            if k not in bind and v != None:
-                bind[k] = v
-        leftover_keys = set(self.kwonlyargs).difference(bind.keys())
+            if k not in bind and v is not None:
+                bind[k] = v.get_current_type()
+        leftover_keys = set(self.kwonlyargs) - bind.keys()
         if len(leftover_keys) > 0:
-            # keyword-only parameter left
             error('keyword-only parameter left:', leftover_keys)
             return None
         spare_keywords = set(bind.keys()) - self.bind
         if self.kwarg == None and len(spare_keywords) > 0:
-            # keyword-only parameter left
             error('too many keyword arguments', spare_keywords)
             return None           
+        bind[self.vararg.id]=TT.List([v.get_current_type() for v in actual.args[i+1:]])
         #print([(k,v.tostr()) for k,v in bind.items()])
         return bind
 
@@ -451,11 +492,11 @@ class G_arguments(G_AST):
         defs = ', '.join('{0}={1}'.format(k,v.get_current_type().tostr()) for k,v in self.defs)
         varargs = None
         if self.vararg:
-            varargs = '*' + self.vararg
-            if self.varargannotation:
+            varargs = '*' + self.vararg.id
+            if self.vararg.annotation:
                 varargs += ':' + repr(self.varargannotation)
-        kws = ', '.join(('{0}={1}'.format(k, v.tostr()) if v else k) for k, v in zip(self.kwonlyargs, self.kw_defaults))
-        kwargs = '**' + self.kwarg if self.kwarg else None
+        kws = ', '.join(('{0}={1}'.format(k, v.get_current_type().tostr()) if v else k) for k, v in zip(self.kwonlyargs, self.kw_defaults))
+        kwargs = '**' + self.kwarg.id if self.kwarg else None
         
         return '({0})'.format( ', '.join(
                              i if isinstance(i, str) else i.tostr()
@@ -511,7 +552,6 @@ class G_SetComp(G_expr): pass
 class G_Compare(G_expr): pass
 class G_Bytes(G_expr): pass
 class G_BoolOp(G_expr): pass
-class G_Attribute(G_expr): pass
 class G_List(G_expr): pass
 class G_ListComp(G_expr): pass
 class G_DictComp(G_expr): pass
@@ -572,7 +612,8 @@ def test_dataflow():
     x = ast.parse(open('test.py').read())
     g = build_dataflow(x)    
     g.execute_all()
-    
+    for i in messages:
+        print(*i)
 if __name__ == '__main__':
     # test_binding()
     test_dataflow()
