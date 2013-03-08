@@ -35,7 +35,12 @@ class InstanceInterface:
     
     def bind_lookups(self, name:str):
         raise NotImplementedError()
-    
+  
+    def filter(self, func):
+        if func(self):
+            return self
+        return EMPTY()
+      
     def bind(self, obj):
         return self      
   
@@ -48,6 +53,9 @@ class InstanceInterface:
 class AnyType(InstanceInterface):
     def __repr__(self):
         return "Any"
+    
+    def filter(self, func):
+        return self
     
     def can_split_to(self, n):
         return True
@@ -120,6 +128,12 @@ class TypeSet(InstanceInterface):
     '''
     def bind(self, name, value):
         return meetall(t.bind(name, value) for t in self.types)
+
+    def get_meet_all(self):
+        return meetall(t.get_meet_all() for t in self.types if isinstance(t, Seq))
+    
+    def filter(self, func):
+        return TypeSet(t for t in self.types)
 
     def add(self, obj):
         if type(obj) == TypeSet:
@@ -212,7 +226,7 @@ class Specific(Instance):
         return self.get_type().instance
 
     def bind_lookups(self, name:str):
-        return self.get_unspecific().bind_lookups(self, name)
+        return self.get_unspecific().bind_lookups(name)
 
     def bind(self, obj):
         return Instance.bind(self, obj)

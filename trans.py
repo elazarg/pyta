@@ -6,7 +6,6 @@ Created on Mar 6, 2013
 
 '''
 TODO:
-* add lambda inlining
 * add operators
 * find end condition
 * limited suppor for list comprehension
@@ -14,6 +13,7 @@ TODO:
 * support finite sequences
 
 --
+* add lambda inlining
 * constrained attribute assignment
 * list tainting
 * dictionary support
@@ -84,7 +84,6 @@ class G_operator(G_AST): pass
 class G_expr_context(G_AST): pass
 class G_cmpop(G_AST): pass
 class G_excepthandler(G_AST): pass
-class G_withitem(G_AST): pass
 class G_boolop(G_AST): pass
 class G_alias(G_AST): pass
 
@@ -116,7 +115,7 @@ class G_Name(G_expr):
         return self._refers
     
     def set_refers(self, nmsp):
-        assert self._refers == None
+        assert self.refers is None
         nmsp.set_single_bind(self)
         self._refers = nmsp
     
@@ -139,7 +138,7 @@ class G_SName(G_Name):
     def update_type(self, newtype):
         # should be called from "Assign", for instance
         self.type = meet(self.type, newtype)
-        self._refers.update_sym(self.id, newtype)
+        self.refers.update_sym(self.id, newtype)
         
     refers = property(G_Name.get_refers, set_refers)        
         
@@ -153,7 +152,7 @@ class G_LName(G_Name):
             world.changed()
     '''
     def get_current_type(self):
-        return self._refers.sym[self.id]
+        return self.refers.sym[self.id]
     
 class G_arg(G_SName):
     @classmethod
@@ -186,12 +185,22 @@ class G_Assign(G_stmt):
             val = self.value.get_current_type()
             n.update_type(val)
             
+class G_With(G_stmt): pass
 
+class G_withitem(G_AST):
+    def execute(self):
+        if self.optional_vars is not None:
+            val = self.context_expr.get_current_type()
+            t = val.filter(lambda x :
+                            x.bind_lookups('__enter__')
+                             and x.bind_lookups('__exit__'))
+            self.optional_vars.update_type(t)
+            
 class G_For(G_stmt):
     def execute(self):
         val = self.iter.get_current_type()
-        if isinstance(val, TT.Seq):
-            self.target.update_type(val.get_meet_all())
+        t = val.filter(lambda x : isinstance(x, TT.Seq))
+        self.target.update_type(t.get_meet_all())
 
                       
 _anything = lambda n : True
@@ -347,7 +356,7 @@ class G_Module(G_def, G_mod):
         for _ in range(9):
             for n in walk_instanceof(self, (G_FunctionDef, G_ClassDef)):
                 n.execute()
-            for n in walk_instanceof(self, (G_Assign, G_For)):
+            for n in walk_instanceof(self, (G_Assign, G_For, G_withitem)):
                 n.execute()
             # if not world.changed():                break
         self.print_types()
@@ -384,11 +393,6 @@ class G_ClassDef(G_def):
     
     def execute(self):
         self.target.update_type(self.type)
-                              
-class G_Attribute(G_expr):
-    def get_current_type(self):
-        val = self.value.get_current_type()
-        return val.bind_lookups(self.attr)
 
 class G_FunctionDef(G_def):    
     def bind_nonglobals(self, name_to_namespace):
@@ -426,9 +430,14 @@ class G_Lambda(G_FunctionDef, G_expr):
     
     def execute(self):
         pass
-
+        
     def get_return(self):
         return self.body.get_current_type()
+                              
+class G_Attribute(G_expr):
+    def get_current_type(self):
+        val = self.value.get_current_type()
+        return val.bind_lookups(self.attr)
 
 class G_Return(G_Assign):  # instead of inheriting g_stmt
     def __init__(self, *params):
@@ -536,7 +545,6 @@ class G_ExceptHandler(G_excepthandler): pass
 
 class G_AugAssign(G_stmt): pass
 class G_ImportFrom(G_stmt): pass
-class G_With(G_stmt): pass
 class G_Import(G_stmt): pass
 
 class G_Expr(G_stmt): pass
