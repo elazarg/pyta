@@ -13,11 +13,16 @@ class Function(Instance):
         Instance.__init__(self, FUNCTION)
         self.gnode = gnode
         self.bound_arg = bound_arg
+        self.printing = False
     
     def tostr(self):
-        ret = self.gnode.sym['return']
-        return '{0}{1} -> {2}'.format(self.gnode.name, self.gnode.args.tostr(),
-                                   ret.tostr())
+        if self.printing:
+            return '[..]' 
+        self.printing = True
+        res = '{0}{1} -> {2}'.format(self.gnode.name, self.gnode.args.tostr(),
+                                   self.gnode.get_return().tostr())
+        self.printing = False
+        return res
 
     def bind_parameter(self, bind):
         return Function(self.gnode, bind)
@@ -35,7 +40,7 @@ class Function(Instance):
         if dic is None:
             return TypeSet({})
         self.gnode.bind_arguments(dic)
-        return self.gnode.sym['return']
+        return self.gnode.get_return()
     
     @staticmethod
     def get_generic():

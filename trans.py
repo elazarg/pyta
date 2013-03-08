@@ -6,13 +6,12 @@ Created on Mar 6, 2013
 
 '''
 TODO:
-* add class instantiation
 * add lambda inlining
+* add operators
 * find end condition
 * limited suppor for list comprehension
 * better builtins
 * support finite sequences
-* fix set/meet bug
 
 --
 * constrained attribute assignment
@@ -239,11 +238,13 @@ class G_def(G_stmt):
     
     def set_single_bind(self, name):
         self.bindings.setdefault(name.id, set()).add(name)
-            
-    def init(self):
+    
+    def make_selfname(self):
         self.target = translate(ast.Name(id=self.name, ctx=ast.Store()))
         self.target.parent = self
         
+    def init(self):
+        self.make_selfname()
         self.arg_ids = {i.id for i in walk_shallow_instanceof(self, G_arg)}
         self.local_defs = list(walk_shallow_instanceof(self, G_def))
         nonlocals = walk_shallow_instanceof(self, G_Nonlocal)
@@ -276,7 +277,7 @@ class G_def(G_stmt):
         from itertools import chain
                 
         names = walk_shallow_instanceof(self, G_SName)
-        defs = (i.target for i in self.local_defs)
+        defs = (i.target for i in self.local_defs if not isinstance(i, G_Lambda))
         for n in chain(names, defs):
             if n.refers is None:
                 n.refers = self
@@ -389,7 +390,6 @@ class G_Attribute(G_expr):
         val = self.value.get_current_type()
         return val.bind_lookups(self.attr)
 
-
 class G_FunctionDef(G_def):    
     def bind_nonglobals(self, name_to_namespace):
         self.bind_nonlocals(name_to_namespace)
@@ -413,12 +413,29 @@ class G_FunctionDef(G_def):
         for arg in walk_shallow_instanceof(self, G_arg):
             arg.update_type(dic[arg.id])
             
+    def get_return(self):
+        return self.sym['return']
+    
+class G_Lambda(G_FunctionDef, G_expr):
+    def __init__(self, *params):
+        self.name = 'lambda'
+        super().__init__(*params)
+            
+    def make_selfname(self):
+        pass
+    
+    def execute(self):
+        pass
+
+    def get_return(self):
+        return self.body.get_current_type()
+
 class G_Return(G_Assign):  # instead of inheriting g_stmt
     def __init__(self, *params):
         super().__init__(*params)
         self.targets = [translate(ast.Name(id='return', ctx=ast.Store()))]
         self._fields += ('targets',)
-
+        
 class G_Call(G_expr):
     def get_current_type(self):
         t = self.func.get_current_type()
@@ -482,8 +499,9 @@ class G_arguments(G_AST):
         spare_keywords = set(bind.keys()) - self.bind
         if self.kwarg == None and len(spare_keywords) > 0:
             error('too many keyword arguments', spare_keywords)
-            return None           
-        bind[self.vararg.id]=TT.List([v.get_current_type() for v in actual.args[i+1:]])
+            return None
+        if self.vararg:
+            bind[self.vararg.id]=TT.List([v.get_current_type() for v in actual.args[i+1:]])
         #print([(k,v.tostr()) for k,v in bind.items()])
         return bind
 
@@ -546,7 +564,6 @@ class G_IfExp(G_expr): pass
 class G_UnaryOp(G_expr): pass
 class G_Dict(G_expr): pass
 class G_Starred(G_expr): pass
-class G_Lambda(G_expr): pass
 class G_GeneratorExp(G_expr): pass
 class G_SetComp(G_expr): pass
 class G_Compare(G_expr): pass

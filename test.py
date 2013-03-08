@@ -1,9 +1,4 @@
-class A:
-    def __init__(self, x):
-        pass
-
-class B:
-    pass
-
-a = A()
-b = B()
+y='fgd'
+foo = lambda y : lambda x : lambda z : x
+#def foo(x): return x
+a=foo(2)('t')(True)
