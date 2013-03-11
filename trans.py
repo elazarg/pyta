@@ -154,11 +154,8 @@ class G_Name(G_expr):
     @classmethod
     def create(self, node, parent):
         node._fields = ('id',)
-        if isinstance(node.ctx, ast.Store):
-            res = G_SName(node, parent)
-        else:
-            res = G_LName(node, parent)
-        return res
+        ctx_to_type = {ast.Store: G_SName, ast.Load: G_LName, ast.Del: G_DelName}
+        return ctx_to_type[type(node.ctx)](node, parent)
         
 class G_SName(G_Name, G_Bind_SName):
     def __init__(self, *params):
@@ -169,8 +166,13 @@ class G_SName(G_Name, G_Bind_SName):
         # should be called from "Assign", for instance
         self.type = meet(self.type, newtype)
         self.refers.update_sym(self.id, newtype)        
+
+class G_DelName(G_Name, G_Bind_SName):        
+    def __init__(self, *params):
+        G_Name.__init__(self, *params)
+        G_Bind_SName.__init__(self)
         
-class G_LName(G_Name, G_Bind_LName):        
+class G_LName(G_Name, G_expr, G_Bind_LName):        
     def __init__(self, *params):
         G_Name.__init__(self, *params)
         G_Bind_LName.__init__(self)
@@ -189,9 +191,6 @@ class G_arg(G_SName):
         super().__init__(node, parent)
         
 class G_Tuple(G_expr):
-    def get_names(self):
-        return set()
-    
     def get_current_type(self):
         return TT.Tuple(n.get_current_type() for n in self.elts)  
  
@@ -200,6 +199,10 @@ class G_Tuple(G_expr):
         seq = newtype.split_to(len(self.elts))
         for target, value in zip(self.elts, seq):
             target.update_type(value)
+    
+class G_List(G_expr):
+    def get_current_type(self):
+        return TT.List(n.get_current_type() for n in self.elts)  
     
 class G_Assign(G_stmt):
     '''for now, it will be passing around types methodically.
@@ -515,7 +518,6 @@ class G_GeneratorExp(G_expr): pass
 class G_SetComp(G_expr): pass
 class G_Compare(G_expr): pass
 class G_Bytes(G_expr): pass
-class G_List(G_expr): pass
 class G_ListComp(G_expr): pass
 class G_DictComp(G_expr): pass
 class G_Yield(G_expr): pass
@@ -543,7 +545,6 @@ class G_Num(G_value):
 
         
 def translate(node, parent=None):
-    """Called if no explicit visitor function exists for a node."""
     g_parent = get_class(node).create(node, parent)
     
     def trans(subnode):

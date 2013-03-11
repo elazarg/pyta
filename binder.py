@@ -54,6 +54,9 @@ class G_Bind_SName(G_Bind_Name):
 class G_Bind_LName(G_Bind_Name):
     pass
 
+class G_Bind_DelName(G_Bind_Name):
+    pass
+
 class G_Bind_arg(G_Bind_SName):
     pass
  
