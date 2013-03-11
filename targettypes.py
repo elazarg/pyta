@@ -47,6 +47,9 @@ class InstanceInterface:
     def get_unspecific(self):
         return self
 
+    def get_value(self):
+        return EMPTY()
+
     def bind_parameter(self, param):
         return self
     
@@ -88,6 +91,9 @@ def meet(a, b):
     if a == b:                  return a
     if a is ANY or b is ANY:    return ANY
     
+    if isinstance(a, Seq) and isinstance(b, Seq):
+        return Seq(a.get_meet_all() + b.get_meet_all())
+    
     if (type(a.get_unspecific()) == type(b.get_unspecific()) and
          (type(a) == Specific or type(b) == Specific)):
         return a.get_unspecific()
@@ -126,6 +132,9 @@ class TypeSet(InstanceInterface):
     def readjust(self, other):
         self.types = other.types
     '''
+    def get_value(self):
+        return TypeSet(t.get_value() for t in self.types)
+    
     def bind(self, name, value):
         return meetall(t.bind(name, value) for t in self.types)
 
@@ -237,6 +246,9 @@ class Specific(Instance):
     def __repr__(self):
         return self.tostr()
 
+    def get_value(self):
+        return self.value
+    
 TYPECONT = [None]
 
 class Class(Instance):
@@ -299,6 +311,15 @@ TUPLE = Class('tuple')
 LIST = Class('list')
 STR = Class('str')
 
+name_to_type = {
+'int':INT,
+'float':FLOAT,
+'complex':COMPLEX,
+'tupel' :TUPLE,
+'list' : list,
+'str' : STR                
+        }
+
 class Seq(Instance):
     def __init__(self, targs):
         self.instance_vars = SymTable()
@@ -348,7 +369,16 @@ class Tuple(Seq):
         if len(self.tupletypes) == n:
             return self.tupletypes
         else:
-            return tuple([TypeSet() for _ in range(n)])  
+            return tuple([TypeSet() for _ in range(n)])
+          
+    def get_value(self):
+        t=()
+        for i in self.tupletypes:
+            v = i.get_value()
+            if v ==EMPTY():
+                return EMPTY()
+            t+=(v,)
+        return t
  
     def __repr__(self):
         return repr(self.tupletypes)
@@ -365,7 +395,10 @@ class Str(Tuple):
         self.settypes = tuple(Specific.factory(STR, c) for c in string)
         super().__init__(self.settypes)
         self.type = STR
-    
+
+    def get_value(self):
+        return self.tvalues
+        
     def __repr__(self):
         return repr(self.tvalues)
 
@@ -384,7 +417,13 @@ class List(Tuple):
         super().__init__(self.tupletypes)
         self.tupletypes = list(tvalues)
         self.type = List
-            
+        
+    def get_value(self):
+        res = super().get_value()
+        if res != EMPTY():
+            return list(res)
+        return res
+      
     def tostr(self):
         return repr(self.tupletypes)
  

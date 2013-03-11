@@ -156,7 +156,7 @@ class str:
     def isspace(self):
         return False
     def title(self):
-        return str
+        return ''
     def isdecimal(self):
         return False
     def rstrip(self, chars):
@@ -185,7 +185,7 @@ class str:
     def partition(self, sep):
         return ('', '', '')
     def translate(self, table):
-        return str
+        return ''
     def isidentifier(self):
         return False
     def __getitem__(self, y):
@@ -203,17 +203,17 @@ class str:
     def __mul__(self, n):
         return ''
     def lower(self):
-        return str
+        return ''
     def format(self, *args, **kwargs):
-        return str
+        return ''
     def __len__(self):
         return 0
     def lstrip(self, chars=''):
-        return str
+        return ''
     def format_map(self, mapping):
-        return str
+        return ''
     def rfind(self, sub, start=0, end=1000):
-        return int
+        return 0
     def __format__(self, format_spec):
         return ''
     def rindex(self, sub, start=0, end=1000):
@@ -231,9 +231,9 @@ class str:
     def splitlines(self, keepends=True):
         return ['']
     def strip(self, chars):
-        return str
+        return ''
     def swapcase(self):
-        return str
+        return ''
     def __contains__(self, y):
         return False
     def replace(self, old, new, count=0):

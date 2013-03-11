@@ -22,7 +22,6 @@ def callable(obj):
 def chr(st):
     return ""
 
-
 def divmod(x,y):
     return (0,0)
 
@@ -49,6 +48,7 @@ def input(text=''):
 
 def bin(obj):
     return ""
+
 def isinstance(obj, t):
     return False
 
@@ -75,10 +75,7 @@ def repr(obj):
     return ""
 
 def round(obj):
-    pass
     return 0
-
-
 
 def setattr():
     return None
@@ -125,6 +122,7 @@ def abs(x):
 
 def max(a,b): 
     return a
+    return b
 
 def min(a, b):
     return a
@@ -135,14 +133,20 @@ def filter():
 def next(x):
     return x.__next__()
     
-def reversed():
+def reversed(x):
     return []
 
-def sorted():
+def sorted(x):
     return []
     
 def sum(iterable):
     return iterable[0]
 
+def range(start, end=0, step=1):
+    for i in (1,2,3):
+        return i
+
+'''
 def map(func, *iterables):
     return iterables
+'''

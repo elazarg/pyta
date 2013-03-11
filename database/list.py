@@ -43,7 +43,7 @@ class tuple:
     def __imul__(self, y):
         return self
 
-    
+'''
 #TODO : Handle mutators
 class list:
     def clear(self):
@@ -92,4 +92,4 @@ class list:
         return self
     
     __hash__ = None
-        
+'''        

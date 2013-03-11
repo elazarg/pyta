@@ -46,8 +46,10 @@ def test(func, cases):
 
 def mutator(method):
     def wr(self, node):
-        self.changed = True
-        return method(self, node)
+        res = method(self, node)
+        if res != node:
+            self.changed = True
+        return res
     return wr
 
 
@@ -58,7 +60,7 @@ class Transformer(NodeTransformer):
     def take_upto(self, body, stopper=lambda x: isinstance(x, flow_stoppers), ifempty=Pass()):
         def upto():
             for stmt in body:
-                res = self.translate(stmt)
+                res = self.visit(stmt)
                 if res is not None:
                     yield res
                 if stopper(stmt):
@@ -158,15 +160,19 @@ class Transformer(NodeTransformer):
     def visit_Pass(self, node):
         return None
     
+def trans(root):
+    x = Transformer()
+    #while x.has_changed():
+    x.visit(root)
+    for n in iter_child_nodes(root):
+        trans(n)
+    #print(to_source(root))
+    return root
     
 from codegen import to_source
 if __name__ == '__main__':
-    x = Transformer()
-    p = parse(open('codegen.py').read())
-    #print(to_source(p))
-    while x.has_changed():
-        x.translate(p)
-        
+    p = parse(open('test.py').read())
+    trans(p)
     st = to_source(p)
     print(st)
     

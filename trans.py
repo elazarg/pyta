@@ -6,10 +6,8 @@ Created on Mar 6, 2013
 
 '''
 TODO:
-* add operators
 * find end condition
-* limited suppor for list comprehension
-* better builtins
+* limited support for list comprehension
 * support finite sequences
 
 --
@@ -17,6 +15,7 @@ TODO:
 * constrained attribute assignment
 * list tainting
 * dictionary support
+* better builtins
 * set support
 * function inlining
 
@@ -26,10 +25,10 @@ TODO:
 * basic documentation
 '''
 
-import ast
+#import ast
 import targettypes as TT
 from targettypes import EMPTY, meet
- 
+from binder import *
 messages=[]
 def error(*x):
     if x not in messages:
@@ -104,22 +103,11 @@ class G_expr(G_AST):
         
 class G_Name(G_expr):
     def __init__(self, *params):
-        super().__init__(*params)
-        self._refers = None
+        G_expr.__init__(self, *params)
+        G_Bind_Name.__init__(self)
     
     def get_names(self):
         return {self.id}
-    
-    def get_refers(self):
-        assert self._refers is None or self.id in self._refers.names
-        return self._refers
-    
-    def set_refers(self, nmsp):
-        assert self.refers is None
-        nmsp.set_single_bind(self)
-        self._refers = nmsp
-    
-    refers = property(get_refers, set_refers)
     
     @classmethod
     def create(self, node, parent):
@@ -130,19 +118,20 @@ class G_Name(G_expr):
             res = G_LName(node, parent)
         return res
         
-class G_SName(G_Name):
-    def set_refers(self, nmsp):
-        super().set_refers(nmsp)
-        self._refers.add_name(self.id)
-        
+class G_SName(G_Name, G_Bind_SName):
+    def __init__(self, *params):
+        G_Name.__init__(self, *params)
+        G_Bind_SName.__init__(self)
+                    
     def update_type(self, newtype):
         # should be called from "Assign", for instance
         self.type = meet(self.type, newtype)
-        self.refers.update_sym(self.id, newtype)
+        self.refers.update_sym(self.id, newtype)        
         
-    refers = property(G_Name.get_refers, set_refers)        
-        
-class G_LName(G_Name):
+class G_LName(G_Name, G_Bind_LName):        
+    def __init__(self, *params):
+        G_Name.__init__(self, *params)
+        G_Bind_LName.__init__(self)
     '''
     def update_type(self, newtype):
         #should be called from a definition (or a definition-instance)
@@ -231,23 +220,15 @@ def walk_shallow_instanceof(node, tt):
     yield from walk_shallow(node, to_yield=lambda n : isinstance(n, tt))
     
 
-class G_def(G_stmt):
+class G_def(G_stmt, G_Bind_def):
     def __init__(self, *params):
-        super().__init__(*params)
-        
-        'all active bindings'
-        self.names = set()
-        
-        'all bindings (id->Name), including lookups'
-        self.bindings = {}
-        
+        G_stmt.__init__(self, *params)
+        G_Bind_def.__init__(*params)
         from symtable import SymTable
         'all bindings (id->type)'
         self.sym = SymTable()
-    
-    def set_single_bind(self, name):
-        self.bindings.setdefault(name.id, set()).add(name)
-    
+        self.isbuiltin = False
+        
     def make_selfname(self):
         self.target = translate(ast.Name(id=self.name, ctx=ast.Store()))
         self.target.parent = self
@@ -265,52 +246,7 @@ class G_def(G_stmt):
     
     def print_names(self):
         print(self.name, ':', self.names)
-        
-    def bind_nonlocals(self, name_to_namespace):
-        # add: find kwarg and vararg
-        for k in self.arg_ids.intersection(self.nonlocal_ids):
-            error('nonlocal {0} is argument'.format(k))
-            
-        nonlocal_names = [n for n in self.shallow_names
-                               if n.id in self.nonlocal_ids]
-        for n in nonlocal_names:
-            assert n.refers is None
-            target = name_to_namespace.get(n.id)
-            if target is None:
-                error('unbound nonlocal', n.id)
-            assert target is not self
-            n.refers = target
-        # done nonlocal.
 
-    def shallow_bind_locals(self, name_to_namespace):
-        from itertools import chain
-                
-        names = walk_shallow_instanceof(self, G_SName)
-        defs = (i.target for i in self.local_defs if not isinstance(i, G_Lambda))
-        for n in chain(names, defs):
-            if n.refers is None:
-                n.refers = self
-                name_to_namespace[n.id] = self
-
-    def bind_lookups(self, name_to_namespace):
-        lookup = dict.fromkeys(self.module.names, self.module)
-        lookup.update(name_to_namespace)
-        for n in walk_shallow_instanceof(self, G_LName):
-            target = lookup.get(n.id)
-            if target is None:
-                if n.id in self.module.builtins.names:
-                    target = self.module.builtins
-                else:
-                    error('unbound variable', n.id)
-            n.refers = target
-
-    def bind_globals(self, names):
-        for n in self.shallow_names:
-            if n.id in names:
-                n.refers = self.module
-        for n in self.arg_ids.intersection(names):
-            error('global {0} is argument'.format(n))
-        
     def update_sym(self, name, newtype):
         self.sym.bind_type(name, newtype)
         '''
@@ -331,79 +267,76 @@ class G_def(G_stmt):
             n.print_types()           
             
 class G_Builtins(G_def):
-    def __init__(self, *params):
-        self.name = 'builtins'
-        super().__init__(*params)
-        self.names = {'print'}
-        self.bindings = {'print':set()}
+    busy = False
+    
+    @staticmethod
+    def create(*params):
+        if G_Builtins.busy:
+            return None
+        G_Builtins.busy = True
+        g = build_files(['database/functions.py',
+                        'database/int.py',
+                        'database/str.py',
+                        'database/float.py',
+                        'database/complex.py',
+                        'database/object.py',
+                        'database/list.py'
+                        ])
+        return g
 
-class G_Module(G_def, G_mod):
+class G_Module(G_def, G_mod, G_Bind_Module):
     def __init__(self, *params):
         self.name = '__main__'
         super().__init__(*params)
-        self.builtins = G_Builtins(*params)
+        G_Bind_Module.__init__(self)
+        self.builtins = G_Builtins.create(*params)
         
     def init(self):
         super().init()
         for n in walk_instanceof(self, G_def):
             n.module = self
             
-            
     def get_fully_qualified_name(self):
         return self.name     
        
     def execute_all(self):
+        self.isbuiltin = G_Builtins.busy        
         for _ in range(9):
-            for n in walk_instanceof(self, (G_FunctionDef, G_ClassDef)):
+            if self.builtins:
+                self.builtins.execute_all()
+            for n in self.defs:
                 n.execute()
-            for n in walk_instanceof(self, (G_Assign, G_For, G_withitem)):
+            for n in self.assigns:
                 n.execute()
             # if not world.changed():                break
-        self.print_types()
-            
-    def bind_globals(self):
-        self.shallow_bind_locals({})
-        # we look first for *all* global bindings, because these can happen anywhere
-        # unlike nonlocals, which are more like simple lookups
-        for s in walk_instanceof(self, G_Global):
-            s.get_enclosing(G_def).bind_globals(s.names)
-        self.bind_lookups({})
-        # assert: no more globals bindings to handle.
     
-    def bind_nonglobals(self):
-        for e in self.nonlocal_ids:
-            error('global nonlocal declaration:', e)
-        for d in self.local_defs:
-            d.bind_nonglobals({})
-        # self.print_names()
+    def find_assign(self):
+        self.defs = list(walk_instanceof(self, (G_FunctionDef, G_ClassDef)))
+        if self.builtins:
+            self.defs += list(walk_instanceof(self.builtins, (G_FunctionDef, G_ClassDef))) 
+        self.assigns = list(walk_instanceof(self, (G_Assign, G_For, G_withitem)))
                        
-class G_ClassDef(G_def):
-    def bind_nonglobals(self, name_to_namespace):
-        for d in self.local_defs:
-            # here we *do not* pass our local vars
-            d.bind_nonglobals(name_to_namespace.copy())
-        self.bind_nonlocals(name_to_namespace)
-        self.shallow_bind_locals(name_to_namespace)
-        self.bind_lookups(name_to_namespace)
-        # self.print_names()
+class G_ClassDef(G_def, G_Bind_ClassDef):
+    def __init__(self, *params):
+        super().__init__(*params)
+        G_Bind_ClassDef.__init__(self)
     
     def init(self):
-        super().init()
-        self.type = TT.Class(self.name, self.sym)
+        G_def.init(self)
+        if G_Builtins.busy and self.name in TT.name_to_type: 
+            self.type = TT.name_to_type[self.name]
+            self.type.sym = self.sym
+        else:
+            self.type = TT.Class(self.name, self.sym)
     
     def execute(self):
         self.target.update_type(self.type)
 
-class G_FunctionDef(G_def):    
-    def bind_nonglobals(self, name_to_namespace):
-        self.bind_nonlocals(name_to_namespace)
-        self.names = self.arg_ids.copy()
-        self.shallow_bind_locals(name_to_namespace)
-        self.bind_lookups(name_to_namespace)
-        for d in self.local_defs:
-            d.bind_nonglobals(name_to_namespace.copy())
-        # self.print_names()
-
+class G_FunctionDef(G_def, G_Bind_FunctionDef):
+    def __init__(self, *params):
+        G_def.__init__(self, *params)
+        G_Bind_FunctionDef.__init__(self)
+        
     def init(self):
         super().init()
         from definitions import Function
@@ -418,7 +351,10 @@ class G_FunctionDef(G_def):
             arg.update_type(dic[arg.id])
             
     def get_return(self):
-        return self.sym['return']
+        res = self.sym['return']
+        if self.isbuiltin:
+            res = res.get_unspecific()
+        return res
     
 class G_Lambda(G_FunctionDef, G_expr):
     def __init__(self, *params):
@@ -450,6 +386,10 @@ class G_Call(G_expr):
         t = self.func.get_current_type()
         #print('calling:',t.tostr())
         return t.call(self)
+
+class G_IfExp(G_expr):
+    def get_current_type(self):
+        return meet(self.body.get_current_type(), self.orelse.get_current_type())
 
 class G_arguments(G_AST):
     def init(self):   
@@ -559,14 +499,13 @@ class G_Continue(G_stmt): pass
 class G_Break(G_stmt): pass
 class G_Raise(G_stmt): pass
 
-class G_Global(G_stmt): pass
-class G_Nonlocal(G_stmt): pass
+class G_Global(G_stmt, G_Bind_Global): pass
+class G_Nonlocal(G_stmt, G_Bind_Global): pass
     
 class G_Set(G_expr): pass
 class G_Ellipsis(G_expr): pass
 class G_Subscript(G_expr): pass
 class G_BinOp(G_expr): pass
-class G_IfExp(G_expr): pass
 # class G_Name(G_expr): pass
 # class G_Tuple(G_expr): pass
 class G_UnaryOp(G_expr): pass
@@ -633,15 +572,22 @@ def test_binding():
     x = ast.parse(open('test/bindings.py').read())
     return build_dataflow(x)
     
-def test_dataflow():
-    x = ast.parse(open('test.py').read())
-    g = build_dataflow(x)    
+def build_files(filelist=['test.py']):
+    x = ast.parse(open(filelist[0]).read())
+    for file in filelist[1:]:
+        x.body.extend(ast.parse(open(file).read()).body)
+    from ast_transform import trans
+    t = trans(x)
+    g = build_dataflow(t)    
     g.execute_all()
-    for i in messages:
-        print(*i)
+    return g
+
 if __name__ == '__main__':
     # test_binding()
-    test_dataflow()
+    g = build_files()
+    g.print_types()
+    for i in messages:
+        print(*i)
 
 
 # unknowns or uninteresting:

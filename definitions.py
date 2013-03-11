@@ -1,6 +1,5 @@
 from targettypes import Instance, Class, TypeSet
 
-
 FUNCTION = Class('function') 
 
 '''
@@ -26,7 +25,7 @@ class Function(Instance):
 
     def bind_parameter(self, bind):
         return Function(self.gnode, bind)
-        
+    '''
     def ismatch(self, actual_args):
         res = self.gnode.args.match(actual_args) is not None 
         if not res:
@@ -34,7 +33,7 @@ class Function(Instance):
             print(ast.dump(actual_args))
             print('does not match', repr(self.gnode.args))
         return res
-        
+    ''' 
     def call(self, actual_args):
         dic = self.gnode.args.match(actual_args, self.bound_arg)
         if dic is None:
