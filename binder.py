@@ -3,6 +3,17 @@ Created on Mar 11, 2013
 
 @author: elazar
 '''
+
+'''
+This module is about finding the binding of a variable.
+There are five possibilities:
+1 local
+2 global
+3 nonlocal 
+4 formal parameter
+5 builtins
+'''
+
 import ast
 error = print                  
 _anything = lambda n : True
@@ -32,15 +43,6 @@ class G_Bind_Name:
         self._refers = nmsp
     
     refers = property(get_refers, set_refers)
-    
-    @classmethod
-    def create(self, node, parent):
-        node._fields = ('id',)
-        if isinstance(node.ctx, ast.Store):
-            res = G_Bind_SName(node, parent)
-        else:
-            res = G_Bind_LName(node, parent)
-        return res
         
 class G_Bind_SName(G_Bind_Name):
     def set_refers(self, nmsp):
@@ -53,14 +55,7 @@ class G_Bind_LName(G_Bind_Name):
     pass
 
 class G_Bind_arg(G_Bind_SName):
-    @classmethod
-    def create(self, node, parent):
-        node._fields = ('id', 'annotation')
-        return G_Bind_arg(node, parent)
-    
-    def __init__(self, node, parent):
-        self.id = node.arg
-        super().__init__(node, parent)
+    pass
  
 class G_Bind_Assign:
     pass

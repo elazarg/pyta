@@ -20,15 +20,16 @@ TODO:
 * function inlining
 
 --
-* general mudolarization and design-level cleanup 
+* general modularization and design-level cleanup 
 * general code-level cleanup
 * basic documentation
 '''
 
 #import ast
 import targettypes as TT
-from targettypes import EMPTY, meet
+from targettypes import EMPTY, meet, meetall
 from binder import *
+
 messages=[]
 def error(*x):
     if x not in messages:
@@ -46,12 +47,8 @@ class world:
         world._change = False
         return res
 
-def get_classname(node):
-    return 'G_' + node.__class__.__name__
-
 def get_class(node):
-    clsname = get_classname(node)
-    return globals().get(clsname, G_AST)
+    return globals().get('G_' + node.__class__.__name__, node.__class__)
 
 class G_AST(ast.AST):
     def __init__(self, node, parent):
@@ -80,11 +77,59 @@ class G_comprehension(G_AST): pass
 class G_keyword(G_AST): pass
 class G_unaryop(G_AST): pass
 class G_operator(G_AST): pass
-class G_expr_context(G_AST): pass
 class G_cmpop(G_AST): pass
 class G_excepthandler(G_AST): pass
-class G_boolop(G_AST): pass
 class G_alias(G_AST): pass
+
+# unknowns or uninteresting:
+class G_v(G_mod): pass
+class G_Suite(G_mod): pass
+# class G_Module(G_mod): pass
+class G_Expression(G_mod): pass
+class G_Interactive(G_mod): pass
+
+    
+class G_expr_context(G_AST): pass
+class G_Store(G_expr_context): pass
+class G_Load(G_expr_context): pass
+class G_Del(G_expr_context): pass
+# unknowns:
+class G_Param(G_expr_context): pass
+class G_AugLoad(G_expr_context): pass
+class G_AugStore(G_expr_context): pass
+
+
+# these can probably canonicalized away:
+
+class G_Add(G_operator): pass
+class G_Div(G_operator): pass
+class G_Sub(G_operator): pass
+class G_Pow(G_operator): pass
+class G_Mod(G_operator): pass
+class G_Mult(G_operator): pass
+class G_BitOr(G_operator): pass
+class G_LShift(G_operator): pass
+class G_BitXor(G_operator): pass
+class G_RShift(G_operator): pass
+class G_BitAnd(G_operator): pass
+class G_FloorDiv(G_operator): pass
+
+class G_Lt(G_cmpop): pass
+class G_Is(G_cmpop): pass
+class G_Eq(G_cmpop): pass
+class G_In(G_cmpop): pass
+class G_Gt(G_cmpop): pass
+class G_GtE(G_cmpop): pass
+class G_LtE(G_cmpop): pass
+class G_NotIn(G_cmpop): pass
+class G_NotEq(G_cmpop): pass
+class G_IsNot(G_cmpop): pass
+
+class G_Not(G_unaryop): pass
+class G_USub(G_unaryop): pass
+class G_UAdd(G_unaryop): pass
+class G_Invert(G_unaryop): pass
+
 
 class G_stmt(G_AST):
     def execute(self):
@@ -105,9 +150,6 @@ class G_Name(G_expr):
     def __init__(self, *params):
         G_expr.__init__(self, *params)
         G_Bind_Name.__init__(self)
-    
-    def get_names(self):
-        return {self.id}
     
     @classmethod
     def create(self, node, parent):
@@ -132,14 +174,7 @@ class G_LName(G_Name, G_Bind_LName):
     def __init__(self, *params):
         G_Name.__init__(self, *params)
         G_Bind_LName.__init__(self)
-    '''
-    def update_type(self, newtype):
-        #should be called from a definition (or a definition-instance)
-        oldtype = self.type
-        self.type = meet(self.type, newtype)
-        if oldtype != self.type:
-            world.changed()
-    '''
+
     def get_current_type(self):
         return self.refers.sym[self.id]
     
@@ -191,35 +226,6 @@ class G_For(G_stmt):
         t = val.filter(lambda x : isinstance(x, TT.Seq))
         self.target.update_type(t.get_meet_all())
 
-                      
-_anything = lambda n : True
-def walk(node, to_extend=_anything, to_yield=_anything):
-    """
-    Recursively yield all descendant nodes in the tree starting at *node*
-    (including *node* itself), in no specified order.  This is useful if you
-    only want to modify nodes in place and don't care about the context.
-    """
-    from collections import deque
-    todo = deque([node])
-    while todo:
-        node = todo.popleft()
-        if to_extend(node):
-            todo.extend(ast.iter_child_nodes(node))
-        if to_yield(node):
-            yield node
-
-def walk_instanceof(node, tt):
-    yield from walk(node, to_yield=lambda n : isinstance(n, tt))
-
-def walk_shallow(root, to_yield=_anything):
-    extendfunc = lambda n : not isinstance(n, G_def)
-    for node in ast.iter_child_nodes(root):
-        yield from walk(node, to_yield=to_yield, to_extend=extendfunc)
-
-def walk_shallow_instanceof(node, tt):
-    yield from walk_shallow(node, to_yield=lambda n : isinstance(n, tt))
-    
-
 class G_def(G_stmt, G_Bind_def):
     def __init__(self, *params):
         G_stmt.__init__(self, *params)
@@ -249,11 +255,7 @@ class G_def(G_stmt, G_Bind_def):
 
     def update_sym(self, name, newtype):
         self.sym.bind_type(name, newtype)
-        '''
-        for n in self.bindings[name]:
-            if isinstance(n, G_LName):
-                n.update_type(newtype)
-        '''
+        
     def get_fully_qualified_name(self):
         return self.get_enclosing(G_def).get_fully_qualified_name() + '.' + self.name
     
@@ -387,9 +389,19 @@ class G_Call(G_expr):
         #print('calling:',t.tostr())
         return t.call(self)
 
+def meet_from(iterable):
+    return meetall(i.get_current_type() for i in iterable)
+
 class G_IfExp(G_expr):
     def get_current_type(self):
-        return meet(self.body.get_current_type(), self.orelse.get_current_type())
+        return meet_from([self.body, self.orelse])
+    
+class G_BoolOp(G_expr):
+    def get_current_type(self):
+        return meet_from(self.values)
+     
+class G_Or(G_BoolOp): pass
+class G_And(G_BoolOp): pass
 
 class G_arguments(G_AST):
     def init(self):   
@@ -404,19 +416,11 @@ class G_arguments(G_AST):
         rearg = [i.id for i in self.args]
         size = len(self.defaults)
         self.pos = rearg[:-size] if size > 0 else rearg
-        '''
-        self.bind = b
-        if b is not None:
-            del self.pos[0]
-        '''
         self.kwonlyargs = [i.id for i in self.kwonlyargs]
         
         self.defs = list(zip(rearg[-size:] , self.defaults))
         self.bind = set(rearg + [self.vararg] + self.kwonlyargs + [self.kwarg])  
-    '''
-    def with_bind(self, t):
-        return Arguments(self.arg, t)
-    ''' 
+
     def match(self, actual, bound_arg=None):
         bind = {}
         if bound_arg is not None:
@@ -473,9 +477,7 @@ class G_arguments(G_AST):
                              if i) )
 
 
-    
-class G_Or(G_boolop): pass
-class G_And(G_boolop): pass
+
 
 class G_ExtSlice(G_slice): pass
 class G_Index(G_slice): pass
@@ -506,8 +508,6 @@ class G_Set(G_expr): pass
 class G_Ellipsis(G_expr): pass
 class G_Subscript(G_expr): pass
 class G_BinOp(G_expr): pass
-# class G_Name(G_expr): pass
-# class G_Tuple(G_expr): pass
 class G_UnaryOp(G_expr): pass
 class G_Dict(G_expr): pass
 class G_Starred(G_expr): pass
@@ -515,7 +515,6 @@ class G_GeneratorExp(G_expr): pass
 class G_SetComp(G_expr): pass
 class G_Compare(G_expr): pass
 class G_Bytes(G_expr): pass
-class G_BoolOp(G_expr): pass
 class G_List(G_expr): pass
 class G_ListComp(G_expr): pass
 class G_DictComp(G_expr): pass
@@ -545,8 +544,7 @@ class G_Num(G_value):
         
 def translate(node, parent=None):
     """Called if no explicit visitor function exists for a node."""
-    C = get_class(node)
-    g_parent = C.create(node, parent)
+    g_parent = get_class(node).create(node, parent)
     
     def trans(subnode):
         if isinstance(subnode, ast.AST):
@@ -590,50 +588,3 @@ if __name__ == '__main__':
         print(*i)
 
 
-# unknowns or uninteresting:
-class G_v(G_mod): pass
-class G_Suite(G_mod): pass
-# class G_Module(G_mod): pass
-class G_Expression(G_mod): pass
-class G_Interactive(G_mod): pass
-
-    
-# unknowns:
-class G_Del(G_expr_context): pass
-class G_Load(G_expr_context): pass
-class G_Param(G_expr_context): pass
-class G_Store(G_expr_context): pass
-class G_AugLoad(G_expr_context): pass
-class G_AugStore(G_expr_context): pass
-
-
-# these can probably canonicalized away:
-
-class G_Add(G_operator): pass
-class G_Div(G_operator): pass
-class G_Sub(G_operator): pass
-class G_Pow(G_operator): pass
-class G_Mod(G_operator): pass
-class G_Mult(G_operator): pass
-class G_BitOr(G_operator): pass
-class G_LShift(G_operator): pass
-class G_BitXor(G_operator): pass
-class G_RShift(G_operator): pass
-class G_BitAnd(G_operator): pass
-class G_FloorDiv(G_operator): pass
-
-class G_Lt(G_cmpop): pass
-class G_Is(G_cmpop): pass
-class G_Eq(G_cmpop): pass
-class G_In(G_cmpop): pass
-class G_Gt(G_cmpop): pass
-class G_GtE(G_cmpop): pass
-class G_LtE(G_cmpop): pass
-class G_NotIn(G_cmpop): pass
-class G_NotEq(G_cmpop): pass
-class G_IsNot(G_cmpop): pass
-
-class G_Not(G_unaryop): pass
-class G_USub(G_unaryop): pass
-class G_UAdd(G_unaryop): pass
-class G_Invert(G_unaryop): pass
