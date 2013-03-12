@@ -447,3 +447,58 @@ class List(FiniteSeq):
  
     def __repr__(self):
         return repr(list(self.tupletypes))
+
+
+FUNCTION = Class('function') 
+GENERATOR = Class('generator')
+'''
+should make distinction between types of variables in general,
+and return type of some specific execution place
+'''
+class Subroutine(Instance):
+    def __init__(self, gnode, gen_func, bound_arg=None):
+        Instance.__init__(self, gen_func)
+        self.gnode = gnode
+        self.bound_arg = bound_arg
+        self.printing = False
+    
+    def bind_parameter(self, bind):
+        return type(self)(self.gnode, bind)
+
+    def call(self, actual_args):
+        dic = self.gnode.args.match(actual_args, self.bound_arg)
+        if dic is None:
+            return TypeSet({})
+        self.gnode.bind_arguments(dic)
+        return self.gnode.get_return()
+
+    def tostr(self):
+        if self.printing:
+            return '[..]' 
+        self.printing = True
+        res = '{0}{1} -> {2}'.format(self.gnode.name, self.gnode.args.tostr(),
+                                   self.gnode.get_return().tostr())
+        self.printing = False
+        return res
+    
+class Function(Subroutine):
+    def __init__(self, gnode, bound_arg=None):
+        super().__init__(gnode, FUNCTION, bound_arg)
+            
+    @staticmethod
+    def get_generic():
+        from ast import parse
+        func = parse('def foo(*x, **y): pass').body[0]
+        func.sym = {}
+        res = Function(func, None)
+        res.ismatch = lambda *x : True
+        return res
+    
+
+class Generator(Subroutine):
+    def __init__(self, gnode, bound_arg=None):
+        super().__init__(gnode, GENERATOR, bound_arg)
+
+    def tostr(self):
+        return 'gen[{0}]'.format(super().tostr())
+FUNCTION.instance = Function.get_generic()

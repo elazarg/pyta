@@ -19,6 +19,10 @@ class SymTable:
     def get_var(self, name):
         return self.vars.get(name, types.EMPTY())
 
+    def remove(self, name):
+        #for the 'yield' case
+        del self.vars[name]
+        
     def __getitem__(self, name):
         return self.get_var(name)
 

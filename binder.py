@@ -158,13 +158,6 @@ class G_Bind_Namespace:
         for n in self.arg_ids.intersection(names):
             error('global {0} is argument'.format(n))
         
-    def update_sym(self, name, newtype):
-        self.sym.bind_type(name, newtype)
-        '''
-        for n in self.bindings[name]:
-            if isinstance(n, G_LName):
-                n.update_type(newtype)
-        '''
     def get_fully_qualified_name(self):
         return self.get_enclosing(G_Bind_def).get_fully_qualified_name() + '.' + self.name
 

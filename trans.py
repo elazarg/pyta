@@ -7,8 +7,6 @@ Created on Mar 6, 2013
 '''
 TODO:
 * find end condition
-* list comprehension - binding rules
-* generator, dict and set comprehension - binding rules
 * support finite sequences
 
 --
@@ -207,6 +205,9 @@ class G_List(G_expr):
 
 class G_Assign(G_stmt):
     def execute(self):
+        if self.targets is None:
+            # simple 'return' statement
+            return
         for n in self.targets:
             val = self.value.get_current_type()
             n.update_type(val)
@@ -370,8 +371,13 @@ class G_FunctionDef(G_def, G_Bind_FunctionDef):
         
     def init(self):
         super().init()
-        from definitions import Function
-        self.type = Function(self)
+        self.yielding = any(walk_shallow_instanceof(self, (G_Yield, G_YieldFrom) ))
+        if self.yielding:
+            self.type = TT.Generator(self)
+            for r in walk_shallow_instanceof(self, G_Return):
+                r.targets = None
+        else:
+            self.type = TT.Function(self)
         #for n in walk_shallow_instanceof(self, G_Return):            print(ast.dump(n))
     
     def execute(self):
@@ -382,6 +388,10 @@ class G_FunctionDef(G_def, G_Bind_FunctionDef):
             arg.update_type(dic[arg.id])
             
     def get_return(self):
+        if self.yielding:
+            t = self.sym.get_var('yield')
+            s = self.sym.get_var('yield from')
+            return meet(TT.Seq([t]), s) 
         res = self.sym['return']
         if self.isbuiltin:
             res = res.get_unspecific()
@@ -406,12 +416,25 @@ class G_Attribute(G_expr):
         val = self.value.get_current_type()
         return val.bind_lookups(self.attr)
 
-class G_Return(G_Assign):  # instead of inheriting g_stmt
-    def __init__(self, *params):
+class G_ret(G_Assign): # instead of inheriting g_stmt/G_expr
+    def init_ret(self, targetid, *params):    
         super().__init__(*params)
-        self.targets = [translate(ast.Name(id='return', ctx=ast.Store()))]
+        self.targets = [translate(ast.Name(id=targetid, ctx=ast.Store()))]
         self._fields += ('targets',)
         
+class G_Return(G_ret): 
+    def __init__(self, *params):
+        self.init_ret('return', *params)
+        
+class G_Yield(G_ret): 
+    def __init__(self, *params):
+        self.init_ret('yield', *params)
+
+class G_YieldFrom(G_ret):
+    def __init__(self, *params):
+        self.init_ret('yield from', *params)
+
+
 class G_Call(G_expr):
     def get_current_type(self):
         t = self.func.get_current_type()
@@ -540,8 +563,6 @@ class G_Starred(G_expr): pass
 class G_GeneratorExp(G_expr): pass
 class G_Compare(G_expr): pass
 class G_Bytes(G_expr): pass
-class G_Yield(G_expr): pass
-class G_YieldFrom(G_expr): pass
 
 class G_value(G_expr): pass
     
