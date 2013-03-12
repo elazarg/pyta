@@ -7,7 +7,8 @@ Created on Mar 6, 2013
 '''
 TODO:
 * find end condition
-* limited support for list comprehension
+* list comprehension - binding rules
+* generator, dict and set comprehension - binding rules
 * support finite sequences
 
 --
@@ -73,7 +74,6 @@ class G_AST(ast.AST):
     
 class G_slice(G_AST): pass
 class G_mod(G_AST): pass
-class G_comprehension(G_AST): pass
 class G_keyword(G_AST): pass
 class G_unaryop(G_AST): pass
 class G_operator(G_AST): pass
@@ -93,6 +93,7 @@ class G_expr_context(G_AST): pass
 class G_Store(G_expr_context): pass
 class G_Load(G_expr_context): pass
 class G_Del(G_expr_context): pass
+
 # unknowns:
 class G_Param(G_expr_context): pass
 class G_AugLoad(G_expr_context): pass
@@ -149,7 +150,6 @@ class G_expr(G_AST):
 class G_Name(G_expr):
     def __init__(self, *params):
         G_expr.__init__(self, *params)
-        G_Bind_Name.__init__(self)
     
     @classmethod
     def create(self, node, parent):
@@ -202,16 +202,15 @@ class G_Tuple(G_expr):
     
 class G_List(G_expr):
     def get_current_type(self):
-        return TT.List(n.get_current_type() for n in self.elts)  
-    
+        res = TT.Tuple(n.get_current_type() for n in self.elts)
+        return res
+
 class G_Assign(G_stmt):
-    '''for now, it will be passing around types methodically.
-    no actual edge will be placed.'''
     def execute(self):
         for n in self.targets:
             val = self.value.get_current_type()
             n.update_type(val)
-            
+
 class G_With(G_stmt): pass
 
 class G_withitem(G_AST):
@@ -227,8 +226,33 @@ class G_For(G_stmt):
     def execute(self):
         val = self.iter.get_current_type()
         t = val.filter(lambda x : isinstance(x, TT.Seq))
-        self.target.update_type(t.get_meet_all())
+        res = t.get_meet_all()
+        self.target.update_type(res)
 
+class G_comprehension(G_For):
+    pass
+
+class G_Comp(G_expr, G_Bind_Comprehension):
+    """
+    ListComp(
+        elt=Name(id='a', ctx=Load()),
+        generators=[ comprehension(
+            target=Name(id='b', ctx=Store()),
+            iter=Name(id='c', ctx=Load()),
+            ifs=[])
+        ])
+    """
+    def __init__(self, *params):
+        G_expr.__init__(self, *params)
+        G_Bind_Comprehension.__init__(self)
+
+    def get_current_type(self):
+        return TT.List([self.elt.get_current_type()])        
+            
+class G_SetComp(G_Comp): pass
+class G_ListComp(G_Comp): pass
+class G_DictComp(G_Comp): pass
+        
 class G_def(G_stmt, G_Bind_def):
     def __init__(self, *params):
         G_stmt.__init__(self, *params)
@@ -243,9 +267,10 @@ class G_def(G_stmt, G_Bind_def):
         self.target.parent = self
         
     def init(self):
+        super().init()
+        G_Bind_def.init(self)
         self.make_selfname()
         self.arg_ids = {i.id for i in walk_shallow_instanceof(self, G_arg)}
-        self.local_defs = list(walk_shallow_instanceof(self, G_def))
         nonlocals = walk_shallow_instanceof(self, G_Nonlocal)
         self.nonlocal_ids = set(sum([i.names for i in nonlocals], []))
         self.shallow_names = list(walk_shallow_instanceof(self, G_Name))
@@ -279,7 +304,8 @@ class G_Builtins(G_def):
         if G_Builtins.busy:
             return None
         G_Builtins.busy = True
-        g = build_files(['database/functions.py',
+        g = build_files([
+                        'database/functions.py',
                         'database/int.py',
                         'database/str.py',
                         'database/float.py',
@@ -479,9 +505,6 @@ class G_arguments(G_AST):
                                        ]
                              if i) )
 
-
-
-
 class G_ExtSlice(G_slice): pass
 class G_Index(G_slice): pass
 class G_Slice(G_slice): pass
@@ -515,11 +538,8 @@ class G_UnaryOp(G_expr): pass
 class G_Dict(G_expr): pass
 class G_Starred(G_expr): pass
 class G_GeneratorExp(G_expr): pass
-class G_SetComp(G_expr): pass
 class G_Compare(G_expr): pass
 class G_Bytes(G_expr): pass
-class G_ListComp(G_expr): pass
-class G_DictComp(G_expr): pass
 class G_Yield(G_expr): pass
 class G_YieldFrom(G_expr): pass
 
@@ -572,19 +592,21 @@ def test_binding():
     return build_dataflow(x)
     
 def build_files(filelist=['test.py']):
-    x = ast.parse(open(filelist[0]).read())
+    if filelist == []:
+        x = ast.parse("")
+    else:
+        x = ast.parse(open(filelist[0]).read())
     for file in filelist[1:]:
         x.body.extend(ast.parse(open(file).read()).body)
-    from ast_transform import trans
-    t = trans(x)
+    from ast_transform import trans as transform
+    t = transform(x)
     g = build_dataflow(t)    
     g.execute_all()
     return g
 
 if __name__ == '__main__':
     # test_binding()
-    g = build_files()
-    g.print_types()
+    build_files().print_types()
     for i in messages:
         print(*i)
 

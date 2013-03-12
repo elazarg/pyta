@@ -79,38 +79,38 @@ def round(obj):
 
 def setattr():
     return None
-'''
-def bool(obj=0):
-    return False
-
-def bytes(obj=b''):
-    return b''
-
-
-def complex(x=0):
-    return 0j
-
-def float(obj=0.0):
-    return 0.0
-
-def int(obj=0):
-    return 0
-
-def list(obj):
-    return []
-def set():
-    return {}
-def str():
-    return ""
-def tuple():
-    return ()
-def type(x):
-    class type:
-        pass
-    return type
-
-
-'''
+#'''
+#def bool(obj=0):
+#    return False
+#
+#def bytes(obj=b''):
+#    return b''
+#
+#
+#def complex(x=0):
+#    return 0j
+#
+#def float(obj=0.0):
+#    return 0.0
+#
+#def int(obj=0):
+#    return 0
+#
+#def list(obj):
+#    return []
+#def set():
+#    return {}
+#def str():
+#    return ""
+#def tuple():
+#    return ()
+#def type(x):
+#    class type:
+#        pass
+#    return type
+#
+#
+#'''
 def vars():
     return {"" : ""}
 
@@ -120,9 +120,13 @@ def pow(x,y,z=0):
 def abs(x):
     return x
 
-def max(a,b): 
-    return a
-    return b
+def max(*values): 
+    for i in values:
+        return i
+
+def max(iterable): 
+    for i in iterable:
+        return i
 
 def min(a, b):
     return a
@@ -146,7 +150,7 @@ def range(start, end=0, step=1):
     for i in (1,2,3):
         return i
 
-'''
-def map(func, *iterables):
-    return iterables
-'''
+#'''
+#def map(func, *iterables):
+#    return iterables
+#'''

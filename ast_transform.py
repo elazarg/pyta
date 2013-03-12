@@ -65,6 +65,8 @@ class Transformer(NodeTransformer):
                     yield res
                 if stopper(stmt):
                     return
+        if ifempty is not None:
+            body.append(ifempty)
         res = list(upto())
         if ifempty is not None and res == []:
             res = [ifempty]
