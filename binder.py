@@ -16,7 +16,6 @@ There are five possibilities:
 
 import ast
 error = print                  
-_anything = lambda n : True
 
 
 class G_Bind_Global: pass
@@ -69,32 +68,7 @@ class G_Bind_withitem:
 class G_Bind_For:
     pass
 
-def walk(node, to_extend=_anything, to_yield=_anything):
-    """
-    Recursively yield all descendant nodes in the tree starting at *node*
-    (including *node* itself), in no specified order.  This is useful if you
-    only want to modify nodes in place and don't care about the context.
-    """
-    from collections import deque
-    todo = deque([node])
-    while todo:
-        node = todo.popleft()
-        if to_extend(node):
-            todo.extend(ast.iter_child_nodes(node))
-        if to_yield(node):
-            yield node
-
-def walk_instanceof(node, tt):
-    yield from walk(node, to_yield=lambda n : isinstance(n, tt))
-
-def walk_shallow(root, to_yield=_anything):
-    extendfunc = lambda n : not isinstance(n, G_Bind_def)
-    for node in ast.iter_child_nodes(root):
-        yield from walk(node, to_yield=to_yield, to_extend=extendfunc)
-
-def walk_shallow_instanceof(node, tt):
-    yield from walk_shallow(node, to_yield=lambda n : isinstance(n, tt))
-    
+  
 class G_Bind_Namespace:
     def __init__(self, *params):        
         'all active bindings'
@@ -131,7 +105,7 @@ class G_Bind_Namespace:
     def shallow_bind_locals(self, name_to_namespace):
         from itertools import chain
                 
-        names = walk_shallow_instanceof(self, G_Bind_SName)
+        names = self.walk_shallow_instanceof(G_Bind_SName)
         defs = (i.target for i in self.local_bind_defs)
         for n in chain(names, defs):
             if n.refers is None:
@@ -141,7 +115,7 @@ class G_Bind_Namespace:
     def bind_lookups(self, name_to_namespace):
         lookup = dict.fromkeys(self.module.names, self.module)
         lookup.update(name_to_namespace)
-        for n in walk_shallow_instanceof(self, G_Bind_LName):
+        for n in self.walk_shallow_instanceof(G_Bind_LName):
             target = lookup.get(n.id)
             if target is None and n.id in self.module.builtins.names:
                 target = self.module.builtins
@@ -162,22 +136,22 @@ class G_Bind_Namespace:
 
 class G_Bind_def(G_Bind_Namespace):
     def init(self):
-        self.local_bind_defs = list(walk_shallow_instanceof(self, G_Bind_def))                
+        self.local_bind_defs = list(self.walk_shallow_instanceof(G_Bind_def))                
 
 class G_Bind_Module(G_Bind_def):
     def init(self):
         super().init()
-        for n in walk_instanceof(self, G_Bind_def):
+        for n in self.walk_instanceof(G_Bind_def):
             n.module = self
             
     def get_fully_qualified_name(self):
         return self.name     
     
     def find_assign(self):
-        self.defs = list(walk_instanceof(self, (G_Bind_FunctionDef, G_Bind_ClassDef)))
+        self.defs = list(self.walk_instanceof( (G_Bind_FunctionDef, G_Bind_ClassDef)))
         if self.builtins:
-            self.defs += list(walk_instanceof(self.builtins, (G_Bind_FunctionDef, G_Bind_ClassDef))) 
-        self.assigns = list(walk_instanceof(self, (G_Bind_Assign, G_Bind_For, G_Bind_withitem)))
+            self.defs += list(self.buitins.walk_instanceof( (G_Bind_FunctionDef, G_Bind_ClassDef))) 
+        self.assigns = list(self.walk_instanceof( (G_Bind_Assign, G_Bind_For, G_Bind_withitem)))
         
     def bind_globals(self):
         self.find_assign()
@@ -185,7 +159,7 @@ class G_Bind_Module(G_Bind_def):
         self.shallow_bind_locals({})
         # we look first for *all* global bindings, because these can happen anywhere
         # unlike nonlocals, which are more like simple lookups
-        for s in walk_instanceof(self, G_Bind_Global):
+        for s in self.walk_instanceof(G_Bind_Global):
             s.get_enclosing(G_Bind_def).bind_globals(s.names)
         self.bind_lookups({})
         # assert: no more globals bindings to handle.

@@ -27,7 +27,6 @@ TODO:
 #import ast
 import targettypes as TT
 from targettypes import EMPTY, meet, meetall
-from binder import walk_instanceof, walk_shallow_instanceof
 from binder import G_Bind_def, G_Bind_ClassDef, G_Bind_FunctionDef, G_Bind_Comprehension, G_Bind_Module
 from binder import G_Bind_SName, G_Bind_LName, G_Bind_Global
 
@@ -72,6 +71,35 @@ class G_AST(ast.AST):
     
     def init(self):
         pass
+    
+    _anything = lambda n : True
+    
+    def walk(self, to_extend=_anything, to_yield=_anything):
+        """
+        Recursively yield all descendant nodes in the tree starting at *self*
+        (including *self* itself), in no specified order.  This is useful if you
+        only want to modify nodes in place and don't care about the context.
+        """
+        from collections import deque
+        todo = deque([self])
+        while todo:
+            node = todo.popleft()
+            if to_extend(node):
+                todo.extend(ast.iter_child_nodes(node))
+            if to_yield(node):
+                yield node
+
+    def walk_instanceof(self, tt):
+        yield from self.walk(to_yield=lambda n : isinstance(n, tt))
+    
+    def walk_shallow(self, to_yield=_anything):
+        extendfunc = lambda n : not isinstance(n, G_Bind_def)
+        for node in ast.iter_child_nodes(self):
+            yield from node.walk(to_yield=to_yield, to_extend=extendfunc)
+    
+    def walk_shallow_instanceof(self, tt):
+        yield from self.walk_shallow(to_yield=lambda n : isinstance(n, tt))
+  
     
 class G_slice(G_AST): pass
 class G_mod(G_AST): pass
@@ -274,10 +302,10 @@ class G_def(G_stmt, G_Bind_def):
         super().init()
         G_Bind_def.init(self)
         self.make_selfname()
-        self.arg_ids = {i.id for i in walk_shallow_instanceof(self, G_arg)}
-        nonlocals = walk_shallow_instanceof(self, G_Nonlocal)
+        self.arg_ids = {i.id for i in self.walk_shallow_instanceof(G_arg)}
+        nonlocals = self.walk_shallow_instanceof(G_Nonlocal)
         self.nonlocal_ids = set(sum([i.names for i in nonlocals], []))
-        self.shallow_names = list(walk_shallow_instanceof(self, G_Name))
+        self.shallow_names = list(self.walk_shallow_instanceof(G_Name))
         
     def add_name(self, name):
         self.names.add(name)
@@ -297,7 +325,7 @@ class G_def(G_stmt, G_Bind_def):
             alltypes = [n.get_current_type() for n in self.bindings.get(m, {}) ]
             print(m, TT.meetall(alltypes).tostr())
         print()
-        for n in walk_shallow_instanceof(self, (G_ClassDef, G_FunctionDef)):
+        for n in self.walk_shallow_instanceof((G_ClassDef, G_FunctionDef)):
             n.print_types()           
             
 class G_Builtins(G_def):
@@ -328,7 +356,7 @@ class G_Module(G_def, G_mod, G_Bind_Module):
         
     def init(self):
         super().init()
-        for n in walk_instanceof(self, G_def):
+        for n in self.walk_instanceof(G_def):
             n.module = self
             
     def get_fully_qualified_name(self):
@@ -346,10 +374,10 @@ class G_Module(G_def, G_mod, G_Bind_Module):
             # if not world.changed():                break
     
     def find_assign(self):
-        self.defs = list(walk_instanceof(self, (G_FunctionDef, G_ClassDef)))
+        self.defs = list(self.walk_instanceof( (G_FunctionDef, G_ClassDef)))
         if self.builtins:
-            self.defs += list(walk_instanceof(self.builtins, (G_FunctionDef, G_ClassDef))) 
-        self.assigns = list(walk_instanceof(self, (G_Assign, G_For, G_withitem)))
+            self.defs += list(self.builtins.walk_instanceof( (G_FunctionDef, G_ClassDef))) 
+        self.assigns = list(self.walk_instanceof( (G_Assign, G_For, G_withitem)))
                        
 class G_ClassDef(G_def, G_Bind_ClassDef):
     def __init__(self, *params):
@@ -374,20 +402,20 @@ class G_FunctionDef(G_def, G_Bind_FunctionDef):
         
     def init(self):
         super().init()
-        self.yielding = any(walk_shallow_instanceof(self, (G_Yield, G_YieldFrom) ))
+        self.yielding = any(self.walk_shallow_instanceof((G_Yield, G_YieldFrom) ))
         if self.yielding:
             self.type = TT.Generator(self)
-            for r in walk_shallow_instanceof(self, G_Return):
+            for r in self.walk_shallow_instanceof(G_Return):
                 r.targets = None
         else:
             self.type = TT.Function(self)
-        #for n in walk_shallow_instanceof(self, G_Return):            print(ast.dump(n))
+        #for n in self.walk_shallow_instanceof(G_Return):            print(ast.dump(n))
     
     def execute(self):
         self.target.update_type(self.type)
                         
     def bind_arguments(self, dic):
-        for arg in walk_shallow_instanceof(self, G_arg):
+        for arg in self.walk_shallow_instanceof(G_arg):
             arg.update_type(dic[arg.id])
             
     def get_return(self):
