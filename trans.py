@@ -27,7 +27,9 @@ TODO:
 #import ast
 import targettypes as TT
 from targettypes import EMPTY, meet, meetall
-from binder import *
+from binder import walk_instanceof, walk_shallow_instanceof
+from binder import G_Bind_def, G_Bind_ClassDef, G_Bind_FunctionDef, G_Bind_Comprehension, G_Bind_Module
+from binder import G_Bind_SName, G_Bind_LName, G_Bind_Global
 
 messages=[]
 def error(*x):
@@ -49,6 +51,7 @@ class world:
 def get_class(node):
     return globals().get('G_' + node.__class__.__name__, node.__class__)
 
+import ast
 class G_AST(ast.AST):
     def __init__(self, node, parent):
         self._fields = node._fields
@@ -433,7 +436,6 @@ class G_Yield(G_ret):
 class G_YieldFrom(G_ret):
     def __init__(self, *params):
         self.init_ret('yield from', *params)
-
 
 class G_Call(G_expr):
     def get_current_type(self):

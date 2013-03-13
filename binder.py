@@ -114,7 +114,6 @@ class G_Bind_Namespace:
         print(self.name, ':', self.names)
 
     def bind_nonlocals(self, name_to_namespace):
-        # add: find kwarg and vararg
         for k in self.arg_ids.intersection(self.nonlocal_ids):
             error('nonlocal {0} is argument'.format(k))
             
@@ -133,7 +132,7 @@ class G_Bind_Namespace:
         from itertools import chain
                 
         names = walk_shallow_instanceof(self, G_Bind_SName)
-        defs = (i.target for i in self.local_bind_defs)# if not isinstance(i, G_Lambda))
+        defs = (i.target for i in self.local_bind_defs)
         for n in chain(names, defs):
             if n.refers is None:
                 n.refers = self
@@ -166,7 +165,6 @@ class G_Bind_def(G_Bind_Namespace):
         self.local_bind_defs = list(walk_shallow_instanceof(self, G_Bind_def))                
 
 class G_Bind_Module(G_Bind_def):
-        
     def init(self):
         super().init()
         for n in walk_instanceof(self, G_Bind_def):
@@ -207,7 +205,6 @@ class G_Bind_ClassDef(G_Bind_def):
         self.bind_nonlocals(name_to_namespace)
         self.shallow_bind_locals(name_to_namespace)
         self.bind_lookups(name_to_namespace)
-        # self.print_names()
     
 class G_Bind_FunctionDef(G_Bind_def):    
     def bind_nonglobals(self, name_to_namespace):
@@ -217,8 +214,9 @@ class G_Bind_FunctionDef(G_Bind_def):
         self.bind_lookups(name_to_namespace)
         for d in self.local_bind_defs:
             d.bind_nonglobals(name_to_namespace.copy())
-        # self.print_names()
         
 class G_Bind_Comprehension(G_Bind_Namespace):    
     def bind_nonglobals(self, name_to_namespace):
         self.shallow_bind_locals(name_to_namespace)
+        self.bind_lookups(name_to_namespace)
+        

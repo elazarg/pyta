@@ -5,10 +5,11 @@ def foo():
 def bar():
     yield from (1, 2, 3)
     
-for i in foo():
-    z=i
+for j in foo():
+    z=j
     
 for k in bar():
     t=k
 
 
+tt = [i for i in (1,2) if i]

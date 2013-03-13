@@ -481,10 +481,6 @@ class Subroutine(Instance):
         self.printing = False
         return res
     
-class Function(Subroutine):
-    def __init__(self, gnode, bound_arg=None):
-        super().__init__(gnode, FUNCTION, bound_arg)
-            
     @staticmethod
     def get_generic():
         from ast import parse
@@ -494,6 +490,9 @@ class Function(Subroutine):
         res.ismatch = lambda *x : True
         return res
     
+class Function(Subroutine):
+    def __init__(self, gnode, bound_arg=None):
+        super().__init__(gnode, FUNCTION, bound_arg)
 
 class Generator(Subroutine):
     def __init__(self, gnode, bound_arg=None):
