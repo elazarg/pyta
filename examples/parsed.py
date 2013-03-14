@@ -35,8 +35,6 @@ def foo(x, y=5, *g, t, q=98, **P):
     z=bla()
     return z
 
-x=foo(2, t=3)
-x=foo(5, y=6, t=17)
 
 bar = lambda x : 5
 
@@ -45,6 +43,7 @@ def poo(x, y=2):
         return 5
     z=bla()
     return z
+'''
 vx=0
 vf=0.0
 vs=''
@@ -57,7 +56,6 @@ d1=0.0
 '''
 '''
 
-d={'hello': 1, 'world' : 'f', 'wa' : 1.3 }
 for k in (1,2):    print(k)
 def boo():
     def bla():
@@ -90,8 +88,5 @@ class B:
 #r=foo(2)
 z=B.x
 t=B.foo(1)
-'''
-'''
-'''
 
 '''

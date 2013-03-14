@@ -133,6 +133,8 @@ class G_Bind_Namespace:
 
 class G_Bind_def(G_Bind_Namespace):
     def init(self):
+        for n in self.walk_instanceof(G_Bind_Namespace):
+            n.module = self        
         self.local_bind_defs = list(self.walk_shallow_instanceof(G_Bind_def))
         self.local_bind_namespaces = list(self.walk_shallow_instanceof(G_Bind_Namespace))
         self.arg_ids = {i.id for i in self.walk_shallow_instanceof(G_Bind_arg)}
@@ -142,9 +144,10 @@ class G_Bind_def(G_Bind_Namespace):
 
 class G_Bind_Module(G_Bind_def):
     def init(self):
-        super().init()
-        for n in self.walk_instanceof(G_Bind_def):
+        for n in self.walk_instanceof(G_Bind_Namespace):
             n.module = self
+        self.module = self
+        super().init()
             
     def bind_globals(self):
         self.find_assign()

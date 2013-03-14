@@ -566,6 +566,9 @@ class G_arguments(G_AST):
             error('too many keyword arguments', spare_keywords)
             return None
         
+        if None is bind.values():
+            error('unknown arguments mismatch')
+            return None
         return bind
 
     def tostr(self):
@@ -696,7 +699,7 @@ def build_files(filelist):
 
 if __name__ == '__main__':
     # test_binding()
-    x= build_files(['../examples/functions_and_calls.py'])
+    x= build_files(['../examples/parsed.py'])
     x.print_types()
     for i in messages:
         print(*i)

@@ -86,17 +86,23 @@ meet(any, *)==any
 
 'transition function'
 def meet(a, b):
+    assert a is not None 
+    assert b is not None 
     if b == EMPTY():              return a
     if a == EMPTY():              return b
     if a == b:                  return a
     if a is ANY or b is ANY:    return ANY
     
     if isinstance(a, Seq) and isinstance(b, Seq):
-        return a.zip(b)
+        res = a.zip(b)
+        assert res is not None
+        return res
     
     if (type(a.get_unspecific()) == type(b.get_unspecific()) and
          (type(a) == Specific or type(b) == Specific)):
-        return a.get_unspecific()
+        res = a.get_unspecific()
+        assert res is not None
+        return res
 
     if issubclass(type(a), Instance) and issubclass(type(b), Instance):
         return TypeSet([a, b])
@@ -143,6 +149,9 @@ class TypeSet(InstanceInterface):
             
     def get_meet_all(self):
         return meetall(t.get_meet_all() for t in self.types if isinstance(t, Seq))
+
+    def split_to(self, n):
+        return meetall(t.split_to(n) for t in self.types if isinstance(t, Seq))
     
     def filter(self, func):
         return TypeSet(t for t in self.types if t.filter(func))

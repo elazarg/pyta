@@ -16,8 +16,10 @@ def foo(x):
     z=5
     y=4
     d=2
+    return bar
+
 class A:
     global b
     a=3
+    bla = foo
     b=2
-t=4

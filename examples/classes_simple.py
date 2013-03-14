@@ -1,10 +1,11 @@
+'''
 a=1
 a=1
 class A:
     q=4
     def kill(self):
         return 6
-    x=A
+    x=1
 
 if x:
     pass
@@ -31,3 +32,5 @@ zb = z.bar()
 def foo():
     return 1
 y=foo()
+
+'''
