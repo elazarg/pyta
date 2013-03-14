@@ -200,6 +200,8 @@ class TypeSet(InstanceInterface):
         else:
             return '-'
     
+    def __repr__(self):
+        return self.tostr()
 
 from symtable import SymTable 
     

@@ -1,12 +1,12 @@
-class A:
-    def __init__(self):
-        self.z = 6
-A.foo = lambda s : 1
-x=A()
-x.foo = lambda k : 2
-p = x.foo(2)
-
-def bla(x):
-    return 8
-
-z=bla(2)
+class BankAccount(object):
+    def __init__(self, initial_balance=0):
+        self.balance = initial_balance
+    def deposit(self, amount):
+        self.balance += amount
+    def withdraw(self, amount):
+        self.balance -= amount
+    def overdrawn(self):
+        return self.balance < 0
+my_account = BankAccount(15)
+my_account.withdraw(5)
+print(my_account.balance)

@@ -699,7 +699,8 @@ def build_files(filelist):
 
 if __name__ == '__main__':
     # test_binding()
-    x= build_files(['../examples/parsed.py'])
+    import sys
+    x= build_files(sys.argv[1:])
     x.print_types()
     for i in messages:
         print(*i)

@@ -1,4 +1,3 @@
-'''
 a=1
 a=1
 class A:
@@ -33,4 +32,3 @@ def foo():
     return 1
 y=foo()
 
-'''
