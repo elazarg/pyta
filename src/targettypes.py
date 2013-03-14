@@ -193,7 +193,7 @@ class TypeSet(InstanceInterface):
             return '-'
     
 
-from symtable import SymTable
+from symtable import SymTable 
     
 class Instance(InstanceInterface):
     '''

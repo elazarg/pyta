@@ -328,11 +328,6 @@ class G_def(G_stmt):
     def print_types(self):
         print(self.get_fully_qualified_name(), ':')
         self.sym.print(1)
-        '''
-        for m in self.names:
-            alltypes = [n.get_current_type() for n in self.bindings.get(m, {}) ]
-            print(m, TT.meetall(alltypes).tostr())
-        '''
         print()
         for n in self.walk_shallow_instanceof((G_ClassDef, G_FunctionDef)):
             n.print_types()           
@@ -346,19 +341,19 @@ class G_Builtins(G_def):
             return None
         G_Builtins.busy = True
         g = build_files([
-                        'database/functions.py',
-                        'database/int.py',
-                        'database/str.py',
-                        'database/float.py',
-                        'database/complex.py',
-                        'database/object.py',
-                        'database/list.py'
+                        'builtins/functions.py',
+                        'builtins/int.py',
+                        'builtins/str.py',
+                        'builtins/float.py',
+                        'builtins/complex.py',
+                        'builtins/object.py',
+                        'builtins/list.py'
                         ])
         return g
 
 class G_Module(G_def, G_mod, G_Bind_Module):
     def __init__(self, *params):
-        self.name = '__main__'
+        self.name = 'main'
         super().__init__(*params)
         G_Bind_Module.__init__(self)
         self.builtins = G_Builtins.create(*params)
@@ -664,7 +659,7 @@ def test_binding():
     x = ast.parse(open('test/bindings.py').read())
     return build_dataflow(x)
     
-def build_files(filelist=['test.py']):
+def build_files(filelist):
     if filelist == []:
         x = ast.parse("")
     else:
@@ -679,7 +674,8 @@ def build_files(filelist=['test.py']):
 
 if __name__ == '__main__':
     # test_binding()
-    build_files().print_types()
+    x= build_files(['../examples/test.py'])
+    x.print_types()
     for i in messages:
         print(*i)
 

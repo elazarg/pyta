@@ -7,6 +7,10 @@
 
     :copyright: Copyright 2008 by Armin Ronacher.
     :license: BSD.
+    
+    updated 2013 by Elazar Gershuni:
+    * support python3.4
+    * massive refactoring
 """
 from ast import *
 
@@ -365,6 +369,9 @@ class SourceGenerator(NodeVisitor):
 
 
 if __name__ == '__main__':
-    fp = parse(open('codegen.py').read())
-    st = to_source(fp)
-    print(st)
+    st1 = to_source(parse(open('codegen.py').read()))
+    st2 = to_source(parse(st1))
+    
+    print(st2)
+    assert st1 == st2
+    
