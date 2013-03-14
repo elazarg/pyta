@@ -269,12 +269,12 @@ class Class(Instance):
         self.instance = Instance(self)
         
     def call(self, args):
-        init = self.bind_lookups('__init__')
+        init = self.instance.bind_lookups('__init__')
         if not init:
             if len(args.args)==0:
                 return self.instance
             return EMPTY()
-        if init.bind_parameter(self.instance).call(args):
+        if init.call(args):
             return self.instance
         return EMPTY() 
     

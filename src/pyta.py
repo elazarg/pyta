@@ -510,14 +510,15 @@ class G_arguments(G_AST):
         self.defs = list(zip(rearg[-size:] , self.defaults))
         self.bind = set(rearg + [self.vararg] + self.kwonlyargs + [self.kwarg])  
 
-    def match(self, actual, bound_arg=None):
+    def match(self, actual, b=None):
         bind = {}
-        if bound_arg is not None:
-            bind[self.pos[0]]=bound_arg
-            pos = self.pos[1:]
-        else:
-            pos = self.pos[:]
-        bind.update(zip(pos, [x.get_current_type() for x in actual.args]))
+        bound_arg = []
+        if b is not None:
+            bound_arg = [b]
+        
+        args = bound_arg + [x.get_current_type() for x in actual.args] 
+        bind.update(zip(self.pos, args))
+        
         i=0
         for keyword in actual.keywords:
             if keyword.arg in bind:
@@ -526,11 +527,20 @@ class G_arguments(G_AST):
                 return None
             bind[keyword.arg] = keyword.value.get_current_type()
             i+=1
-        bind.update([(k, v.get_current_type()) for k, v in self.defs[i:]])                        
-        leftover = set(pos) - set(bind.keys())
+        bind.update([(k, v.get_current_type()) for k, v in self.defs[i:]])
+                                
+        leftover = set(self.pos) - set(bind.keys())
         if len(leftover) > 0:
             error('positional parameter left:', leftover)
             return None
+        
+        excess_pos = args[i+1:]
+        if self.vararg:
+            bind[self.vararg.id]=TT.List(excess_pos)
+        elif len(excess_pos) > 0:
+            error('excess arguments:', excess_pos)
+            return None
+        
         for k, v in zip(self.kwonlyargs, self.kw_defaults):
             if k not in bind and v is not None:
                 bind[k] = v.get_current_type()
@@ -542,8 +552,6 @@ class G_arguments(G_AST):
         if self.kwarg == None and len(spare_keywords) > 0:
             error('too many keyword arguments', spare_keywords)
             return None
-        if self.vararg:
-            bind[self.vararg.id]=TT.List([v.get_current_type() for v in actual.args[i+1:]])
         return bind
 
     def tostr(self):

@@ -5,3 +5,8 @@ A.foo = lambda s : 1
 x=A()
 x.foo = lambda k : 2
 p = x.foo(2)
+
+def bla(x):
+    return 8
+
+z=bla(2)
