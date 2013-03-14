@@ -19,11 +19,10 @@ TODO:
 * basic documentation
 '''
 
-#import ast
 import targettypes as TT
 from targettypes import EMPTY, meet, meetall
 from binder import G_Bind_def, G_Bind_ClassDef, G_Bind_FunctionDef, G_Bind_Comprehension, G_Bind_Module
-from binder import G_Bind_SName, G_Bind_LName, G_Bind_Global, G_Bind_Lambda
+from binder import G_Bind_SName, G_Bind_LName, G_Bind_Global, G_Bind_Lambda, G_Bind_Namespace
 
 messages=[]
 def error(*x):
@@ -88,7 +87,7 @@ class G_AST(ast.AST):
         yield from self.walk(to_yield=lambda n : isinstance(n, tt))
     
     def walk_shallow(self, to_yield=_anything):
-        extendfunc = lambda n : not isinstance(n, G_Bind_def)
+        extendfunc = lambda n : not isinstance(n, G_Bind_Namespace)
         for node in ast.iter_child_nodes(self):
             yield from node.walk(to_yield=to_yield, to_extend=extendfunc)
     
@@ -189,6 +188,7 @@ class G_SName(G_Name, G_Bind_SName):
     def update_type(self, newtype):
         # should be called from "Assign", for instance
         self.type = meet(self.type, newtype)
+        #print(ast.dump(self))
         return self.refers.update_sym(self.id, newtype)
 
 class G_DelName(G_Name, G_Bind_SName):        
@@ -298,7 +298,7 @@ class G_DictComp(G_Comp): pass
 class G_def(G_stmt):
     def __init__(self, *params):
         G_stmt.__init__(self, *params)
-        G_Bind_def.__init__(*params)
+        G_Bind_def.__init__(self)
         from symtable import SymTable
         'all bindings (id->type)'
         self.sym = SymTable()
@@ -434,6 +434,7 @@ class G_Lambda(G_def, G_expr, G_Bind_Lambda):
     def __init__(self, *params):
         self.name = 'lambda'
         super().__init__(*params)
+        G_Bind_Lambda.__init__(self)
 
     def init(self):
         super().init()
@@ -543,7 +544,6 @@ class G_arguments(G_AST):
             return None
         if self.vararg:
             bind[self.vararg.id]=TT.List([v.get_current_type() for v in actual.args[i+1:]])
-        #print([(k,v.tostr()) for k,v in bind.items()])
         return bind
 
     def tostr(self):

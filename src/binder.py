@@ -14,7 +14,6 @@ There are five possibilities:
 5 builtins
 '''
 
-import ast
 error = print                  
 
 
@@ -26,7 +25,7 @@ class G_Bind_expr:
     pass
 
 class G_Bind_Name:
-    def __init__(self, *params):
+    def __init__(self):
         self._refers = None
     
     def get_names(self):
@@ -70,7 +69,7 @@ class G_Bind_For:
 
   
 class G_Bind_Namespace:
-    def __init__(self, *params):        
+    def __init__(self):        
         'all active bindings'
         self.names = set()
         'all bindings (id->Name), including lookups'
@@ -104,7 +103,7 @@ class G_Bind_Namespace:
 
     def shallow_bind_locals(self, name_to_namespace):
         from itertools import chain
-                
+        
         names = self.walk_shallow_instanceof(G_Bind_SName)
         defs = (i.target for i in self.walk_shallow_instanceof(G_Bind_def))
         for n in chain(names, defs):
@@ -135,6 +134,7 @@ class G_Bind_Namespace:
 class G_Bind_def(G_Bind_Namespace):
     def init(self):
         self.local_bind_defs = list(self.walk_shallow_instanceof(G_Bind_def))
+        self.local_bind_namespaces = list(self.walk_shallow_instanceof(G_Bind_Namespace))
         self.arg_ids = {i.id for i in self.walk_shallow_instanceof(G_Bind_arg)}
         nonlocals = self.walk_shallow_instanceof(G_Bind_Nonlocal)
         self.nonlocal_ids = set(sum([i.names for i in nonlocals], []))
@@ -160,7 +160,7 @@ class G_Bind_Module(G_Bind_def):
     def bind_nonglobals(self):
         for e in self.nonlocal_ids:
             error('global nonlocal declaration:', e)
-        for d in self.local_bind_defs:
+        for d in self.local_bind_namespaces:
             d.bind_nonglobals({})
         # self.print_names()
                        
@@ -194,4 +194,5 @@ class G_Bind_Lambda(G_Bind_Namespace):
         self.bind_lookups(name_to_namespace)
         for d in self.local_bind_defs:
             d.bind_nonglobals(name_to_namespace.copy())
+            
             

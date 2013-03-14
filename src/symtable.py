@@ -52,4 +52,4 @@ class SymTable:
             print('\t'*depth + '{0} : {1}'.format(k,v.tostr()))
     
     def one_line_str(self):
-        return ''.join('{0} : {1}'.format(k,v.tostr()) for k,v in self.vars.items())        
+        return ', '.join('{0} : {1}'.format(k,v.tostr()) for k,v in self.vars.items())        
