@@ -188,8 +188,7 @@ class G_SName(G_Name, G_Bind_SName):
     def update_type(self, newtype):
         # should be called from "Assign", for instance
         self.type = meet(self.type, newtype)
-        #print(ast.dump(self))
-        return self.refers.update_sym(self.id, newtype)
+        self.refers.update_sym(self.id, self.type)
 
 class G_DelName(G_Name, G_Bind_SName):        
     def __init__(self, *params):
@@ -257,8 +256,8 @@ class G_Assign(G_stmt):
             return
         for target in self.targets:
             val = self.value.get_current_type()
-            if target.update_type(val):
-                world.change()
+            target.update_type(val)
+                
 
 class G_With(G_stmt): pass
 
@@ -269,16 +268,14 @@ class G_withitem(G_AST):
             t = val.filter(lambda x :
                             x.bind_lookups('__enter__')
                              and x.bind_lookups('__exit__'))
-            if self.optional_vars.update_type(t):
-                world.change()
+            self.optional_vars.update_type(t)
             
 class G_For(G_stmt):
     def execute(self):
         val = self.iter.get_current_type()
         t = val.filter(lambda x : isinstance(x, TT.Seq))
         res = t.get_meet_all()
-        if self.target.update_type(res):
-            world.change()
+        self.target.update_type(res)
 
 class G_comprehension(G_For):
     pass
@@ -317,7 +314,8 @@ class G_def(G_stmt):
         print(self.name, ':', self.names)
 
     def update_sym(self, name, newtype):
-        self.sym.bind_type(name, newtype)
+        if self.sym.bind_type(name, newtype):
+            world.change()
         
     def get_fully_qualified_name(self):
         return self.get_enclosing(G_def).get_fully_qualified_name() + '.' + self.name
@@ -364,7 +362,7 @@ class G_Module(G_def, G_mod, G_Bind_Module):
         return self.name     
        
     def execute_all(self):
-        self.isbuiltin = G_Builtins.busy        
+        self.isbuiltin = G_Builtins.busy
         while True: #for _ in range(9):
             if self.builtins:
                 self.builtins.execute_all()
@@ -493,41 +491,51 @@ class G_Or(G_BoolOp): pass
 class G_And(G_BoolOp): pass
 
 class G_arguments(G_AST):
-    def init(self):   
-        if self.vararg:
-            self.vararg = translate(ast.arg(self.vararg, self.varargannotation))
-            self.vararg.parent = self
-        if self.kwarg:
-            self.kwarg = translate(ast.arg(self.kwarg, self.kwargannotation))        
-            self.kwarg.parent = self
+    def init(self):
+        def trans(anid, annot):
+            if anid is None:
+                return None
+            res =  translate(ast.arg(anid, annot))
+            res.parent = self
+            return res
+        self.vararg = trans(self.vararg, self.varargannotation)
+        self.kwarg = trans(self.kwarg, self.kwargannotation)        
         super().init()
           
-        rearg = [i.id for i in self.args]
+        self.posargs = [i.id for i in self.args]
         size = len(self.defaults)
-        self.pos = rearg[:-size] if size > 0 else rearg
-        self.kwonlyargs = [i.id for i in self.kwonlyargs]
+        self.pos = self.posargs[:-size] if size > 0 else self.posargs
+        self.kwids = [i.id for i in self.kwonlyargs]
         
-        self.defs = list(zip(rearg[-size:] , self.defaults))
-        self.bind = set(rearg + [self.vararg] + self.kwonlyargs + [self.kwarg])  
+        self.defs = list(zip(self.posargs[-size:] , self.defaults))
+        self.bind = set(self.posargs + [self.vararg] + self.kwonlyargs + [self.kwarg])  
 
     def match(self, actual, b=None):
         bind = {}
+        if self.vararg:
+            bind[self.vararg.id]=None
+        if self.kwarg:
+            bind[self.kwarg.id]=None
+        
         bound_arg = []
         if b is not None:
             bound_arg = [b]
         
-        args = bound_arg + [x.get_current_type() for x in actual.args] 
-        bind.update(zip(self.pos, args))
+        args = bound_arg + [x.get_current_type() for x in actual.args]
+        pos_match = list(zip(self.posargs, args))
+        bind.update(pos_match)
         
-        i=0
+        i=0 
         for keyword in actual.keywords:
             if keyword.arg in bind:
                 # double assignment
                 error('double assignment: ', keyword.arg)
                 return None
             bind[keyword.arg] = keyword.value.get_current_type()
-            i+=1
-        bind.update([(k, v.get_current_type()) for k, v in self.defs[i:]])
+            if keyword.arg in self.posargs:
+                i+=1
+        bind.update([(k, v.get_current_type()) for k, v in self.defs[i:]
+                      if k not in bind])
                                 
         leftover = set(self.pos) - set(bind.keys())
         if len(leftover) > 0:
@@ -538,20 +546,26 @@ class G_arguments(G_AST):
         if self.vararg:
             bind[self.vararg.id]=TT.List(excess_pos)
         elif len(excess_pos) > 0:
-            error('excess arguments:', excess_pos)
-            return None
+            for i in excess_pos:
+                if i in bind: 
+                    error('excess arguments:', excess_pos)
+                    return None
         
-        for k, v in zip(self.kwonlyargs, self.kw_defaults):
+        for k, v in zip(self.kwids, self.kw_defaults):
             if k not in bind and v is not None:
                 bind[k] = v.get_current_type()
-        leftover_keys = set(self.kwonlyargs) - bind.keys()
+        leftover_keys = set(self.kwids) - bind.keys()
         if len(leftover_keys) > 0:
             error('keyword-only parameter left:', leftover_keys)
             return None
-        spare_keywords = set(bind.keys()) - self.bind
+        
+        spare_keywords = set(self.kwids) - bind.keys()
+        if self.vararg is not None:
+            spare_keywords -= {self.vararg.id}
         if self.kwarg == None and len(spare_keywords) > 0:
             error('too many keyword arguments', spare_keywords)
             return None
+        
         return bind
 
     def tostr(self):
@@ -562,7 +576,9 @@ class G_arguments(G_AST):
             varargs = '*' + self.vararg.id
             if self.vararg.annotation:
                 varargs += ':' + repr(self.varargannotation)
-        kws = ', '.join(('{0}={1}'.format(k, v.get_current_type().tostr()) if v else k) for k, v in zip(self.kwonlyargs, self.kw_defaults))
+        kws = ', '.join(('{0}={1}'.format(k, v.get_current_type().tostr())
+                          if v else k) 
+                        for k, v in zip(self.kwids, self.kw_defaults))
         kwargs = '**' + self.kwarg.id if self.kwarg else None
         
         return '({0})'.format( ', '.join(
@@ -680,7 +696,7 @@ def build_files(filelist):
 
 if __name__ == '__main__':
     # test_binding()
-    x= build_files(['../examples/test.py'])
+    x= build_files(['../examples/functions_and_calls.py'])
     x.print_types()
     for i in messages:
         print(*i)

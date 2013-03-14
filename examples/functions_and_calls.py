@@ -1,65 +1,65 @@
 def a():
-    pass
+    return 'a1'
+a1 = a()
 
-a()
 def b():
-    return 0
-
-anint = b()
+    return 'b1'
+b1 = b()
 
 
 def c(x):
-    return
-c(1)
+    return x
+c1 = c(1)
 
 def d(x, y):
-    pass  
+    return (x, y)  
 
-d(1,2)
+d1 = d(1,2)
 
 def e(x=5):
-    pass
+    return x
 
-e()
-e(1)
+e1 = e()
+e2 = e('g')
 
 def f(x, y=5):
-    pass
+    return y
 
-f(1)
-f(1,2)
+f1 = f(1)
+f2 = f(1,'g')
 
 def g(*sequence):
-    pass
+    return sequence
 
-g()
-g(1)
-g(1,2)
+g1 = g()
+g2 = g(1)
+g3 = g(1,2)
 
 def h(x, y=5, *sequence):
-    pass
+    return y
 
-h(1)
-h(1,2)
-h(1,2,3)
-h(1,2,3,4)
-h(1,2,3,4,5)
-
+h1 = h(1)
+h2 = h(1,2)
+h3 = h(1,2,3)
+h4 = h(1,2,3,4)
+h5 = h(1,2,3,4,5)
 def i(x, y=5, *sequence, z=3):
-    pass
+    return z
 
-i(1)
-i(1,2)
-i(1,2,3)
-i(1,2,3,4)
-i(1,2,3,4,5)
+i1 = i(1)
+i2 = i(1,2)
+i3 = i(1,2,3)
+i4 = i(1,2,3,4)
+i5 = i(1,2,3,4,5)
 
-i(1, z=6)
-i(1,2, z=6)
-i(1,2,3, z=6)
-i(1,2,3,4, z=6)
-i(1,2,3,4,5, z=6)
+i6 = i(1, z=6)
+i7 = i(1,2, z=6)
+i8 = i(1,2,3, z=6)
+i9 = i(1,2,3,4, z=6)
+i10 = i(1,2,3,4,5, z=6)
+
 def j(x, y=5, *sequence, z=3, **dic):
+    '**dic does not really work currently'
     pass
 
 j(1)
