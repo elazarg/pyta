@@ -106,7 +106,7 @@ class G_Bind_Namespace:
         from itertools import chain
                 
         names = self.walk_shallow_instanceof(G_Bind_SName)
-        defs = (i.target for i in self.local_bind_defs)
+        defs = (i.target for i in self.walk_shallow_instanceof(G_Bind_def))
         for n in chain(names, defs):
             if n.refers is None:
                 n.refers = self
@@ -130,13 +130,15 @@ class G_Bind_Namespace:
                 n.refers = self.module
         for n in self.arg_ids.intersection(names):
             error('global {0} is argument'.format(n))
-        
-    def get_fully_qualified_name(self):
-        return self.get_enclosing(G_Bind_def).get_fully_qualified_name() + '.' + self.name
+    
 
 class G_Bind_def(G_Bind_Namespace):
     def init(self):
-        self.local_bind_defs = list(self.walk_shallow_instanceof(G_Bind_def))                
+        self.local_bind_defs = list(self.walk_shallow_instanceof(G_Bind_def))
+        self.arg_ids = {i.id for i in self.walk_shallow_instanceof(G_Bind_arg)}
+        nonlocals = self.walk_shallow_instanceof(G_Bind_Nonlocal)
+        self.nonlocal_ids = set(sum([i.names for i in nonlocals], []))
+        self.shallow_names = list(self.walk_shallow_instanceof(G_Bind_Name))                
 
 class G_Bind_Module(G_Bind_def):
     def init(self):
@@ -144,15 +146,6 @@ class G_Bind_Module(G_Bind_def):
         for n in self.walk_instanceof(G_Bind_def):
             n.module = self
             
-    def get_fully_qualified_name(self):
-        return self.name     
-    
-    def find_assign(self):
-        self.defs = list(self.walk_instanceof( (G_Bind_FunctionDef, G_Bind_ClassDef)))
-        if self.builtins:
-            self.defs += list(self.buitins.walk_instanceof( (G_Bind_FunctionDef, G_Bind_ClassDef))) 
-        self.assigns = list(self.walk_instanceof( (G_Bind_Assign, G_Bind_For, G_Bind_withitem)))
-        
     def bind_globals(self):
         self.find_assign()
         
@@ -193,4 +186,12 @@ class G_Bind_Comprehension(G_Bind_Namespace):
     def bind_nonglobals(self, name_to_namespace):
         self.shallow_bind_locals(name_to_namespace)
         self.bind_lookups(name_to_namespace)
-        
+    
+class G_Bind_Lambda(G_Bind_Namespace):    
+    def bind_nonglobals(self, name_to_namespace):
+        self.names = self.arg_ids.copy()
+        self.shallow_bind_locals(name_to_namespace)
+        self.bind_lookups(name_to_namespace)
+        for d in self.local_bind_defs:
+            d.bind_nonglobals(name_to_namespace.copy())
+            

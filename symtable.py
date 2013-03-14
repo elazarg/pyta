@@ -12,7 +12,6 @@ class SymTable:
     def bind_type(self, var_id, anInstance):
         assert isinstance(var_id, str)
         assert anInstance is not None
-        
         self.vars[var_id] = types.meet(self.get_var(var_id), anInstance)
         assert self.vars[var_id] is not None
         
@@ -48,4 +47,6 @@ class SymTable:
     def print(self, depth=0):
         for k,v in self.vars.items():
             print('\t'*depth + '{0} : {1}'.format(k,v.tostr()))
-                
+    
+    def one_line_str(self):
+        return ''.join('{0} : {1}'.format(k,v.tostr()) for k,v in self.vars.items())        

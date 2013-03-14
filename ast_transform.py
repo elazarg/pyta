@@ -93,13 +93,22 @@ class Transformer(NodeTransformer):
         
         return If(test=call, body=[attr], orelse=[ass])
 
+    def visit_Slice(self, s):
+        return [k if k else NameConstant(k) for k in [s.lower, s.upper, s.step]]
+    
+    def visit_ExtSlice(self, s):
+        return [self.visit(k) for k in s.dims]
+    
     @mutator
     def visit_Subscript(self, sub):
         s = sub.slice
         if isinstance(s, Index):
-            return create_attr(sub.value, '__getitem__', s.value)
+            if isinstance(sub.ctx, Load):
+                return create_attr(sub.value, '__getitem__', s.value)
+            else:
+                create_attr(sub.value, '__setitem__', s.value, sub.value)            
         else:
-            args = [k if k else NameConstant(k) for k in [s.lower, s.upper, s.step]]
+            args = self.visit(s)
             call = create_call('__builtins__.slice', args)
             return create_attr(sub.value, '__getitem__', call)
     
@@ -144,7 +153,7 @@ class Transformer(NodeTransformer):
     visit_If = visit_body_orelse
     visit_While = visit_body_orelse
     visit_For = visit_body_orelse
-    visit_With = visit_body_orelse
+    visit_With = visit_body
       
     @mutator
     def visit_Try(self, node):

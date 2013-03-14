@@ -28,7 +28,7 @@ TODO:
 import targettypes as TT
 from targettypes import EMPTY, meet, meetall
 from binder import G_Bind_def, G_Bind_ClassDef, G_Bind_FunctionDef, G_Bind_Comprehension, G_Bind_Module
-from binder import G_Bind_SName, G_Bind_LName, G_Bind_Global
+from binder import G_Bind_SName, G_Bind_LName, G_Bind_Global, G_Bind_Lambda
 
 messages=[]
 def error(*x):
@@ -173,7 +173,8 @@ class G_expr(G_AST):
     def get_current_type(self):
         return self.type
     
-    def update_type(self):
+    def update_type(self, value):
+        print(ast.dump(self))
         raise NotImplementedError()
         
 class G_Name(G_expr):
@@ -208,6 +209,28 @@ class G_LName(G_Name, G_expr, G_Bind_LName):
 
     def get_current_type(self):
         return self.refers.sym[self.id]
+
+class G_Attribute(G_expr):
+    @classmethod
+    def create(self, node, parent):
+        #node._fields = ('id',)
+        ctx_to_type = {ast.Store: G_SAttribute, ast.Load: G_LAttribute, ast.Del: G_DelAttribute}
+        return ctx_to_type[type(node.ctx)](node, parent)
+
+class G_LAttribute(G_Attribute, G_expr): 
+    def get_current_type(self):
+        val = self.value.get_current_type()
+        return val.bind_lookups(self.attr)
+
+class G_SAttribute(G_Attribute):
+    def update_type(self, newtype):
+        # should be called from "Assign", for instance
+        self.type = meet(self.type, newtype)
+        target_type = self.value.get_current_type()
+        target_type.bind_type(self.attr, newtype)
+    
+class G_DelAttribute(G_Attribute):
+    pass
     
 class G_arg(G_SName):
     @classmethod
@@ -231,17 +254,16 @@ class G_Tuple(G_expr):
     
 class G_List(G_expr):
     def get_current_type(self):
-        res = TT.Tuple(n.get_current_type() for n in self.elts)
-        return res
+        return TT.Tuple(n.get_current_type() for n in self.elts)
 
 class G_Assign(G_stmt):
     def execute(self):
         if self.targets is None:
             # simple 'return' statement
             return
-        for n in self.targets:
+        for target in self.targets:
             val = self.value.get_current_type()
-            n.update_type(val)
+            target.update_type(val)
 
 class G_With(G_stmt): pass
 
@@ -265,15 +287,6 @@ class G_comprehension(G_For):
     pass
 
 class G_Comp(G_expr, G_Bind_Comprehension):
-    """
-    ListComp(
-        elt=Name(id='a', ctx=Load()),
-        generators=[ comprehension(
-            target=Name(id='b', ctx=Store()),
-            iter=Name(id='c', ctx=Load()),
-            ifs=[])
-        ])
-    """
     def __init__(self, *params):
         G_expr.__init__(self, *params)
         G_Bind_Comprehension.__init__(self)
@@ -285,7 +298,7 @@ class G_SetComp(G_Comp): pass
 class G_ListComp(G_Comp): pass
 class G_DictComp(G_Comp): pass
         
-class G_def(G_stmt, G_Bind_def):
+class G_def(G_stmt):
     def __init__(self, *params):
         G_stmt.__init__(self, *params)
         G_Bind_def.__init__(*params)
@@ -302,14 +315,7 @@ class G_def(G_stmt, G_Bind_def):
         super().init()
         G_Bind_def.init(self)
         self.make_selfname()
-        self.arg_ids = {i.id for i in self.walk_shallow_instanceof(G_arg)}
-        nonlocals = self.walk_shallow_instanceof(G_Nonlocal)
-        self.nonlocal_ids = set(sum([i.names for i in nonlocals], []))
-        self.shallow_names = list(self.walk_shallow_instanceof(G_Name))
         
-    def add_name(self, name):
-        self.names.add(name)
-    
     def print_names(self):
         print(self.name, ':', self.names)
 
@@ -321,9 +327,12 @@ class G_def(G_stmt, G_Bind_def):
     
     def print_types(self):
         print(self.get_fully_qualified_name(), ':')
+        self.sym.print(1)
+        '''
         for m in self.names:
             alltypes = [n.get_current_type() for n in self.bindings.get(m, {}) ]
             print(m, TT.meetall(alltypes).tostr())
+        '''
         print()
         for n in self.walk_shallow_instanceof((G_ClassDef, G_FunctionDef)):
             n.print_types()           
@@ -414,7 +423,7 @@ class G_FunctionDef(G_def, G_Bind_FunctionDef):
     def execute(self):
         self.target.update_type(self.type)
                         
-    def bind_arguments(self, dic):
+    def bind_arguments_type(self, dic):
         for arg in self.walk_shallow_instanceof(G_arg):
             arg.update_type(dic[arg.id])
             
@@ -428,24 +437,28 @@ class G_FunctionDef(G_def, G_Bind_FunctionDef):
             res = res.get_unspecific()
         return res
     
-class G_Lambda(G_FunctionDef, G_expr):
+class G_Lambda(G_def, G_expr, G_Bind_Lambda):
     def __init__(self, *params):
         self.name = 'lambda'
         super().__init__(*params)
-            
+
+    def init(self):
+        super().init()
+        self.type = TT.Function(self)
+        
     def make_selfname(self):
         pass
-    
+
+    def bind_arguments_type(self, dic):
+        for arg in self.walk_shallow_instanceof(G_arg):
+            arg.update_type(dic[arg.id])
+            
     def execute(self):
         pass
         
     def get_return(self):
         return self.body.get_current_type()
                               
-class G_Attribute(G_expr):
-    def get_current_type(self):
-        val = self.value.get_current_type()
-        return val.bind_lookups(self.attr)
 
 class G_ret(G_Assign): # instead of inheriting g_stmt/G_expr
     def init_ret(self, targetid, *params):    
@@ -565,8 +578,14 @@ class G_Slice(G_slice): pass
 class G_ExceptHandler(G_excepthandler): pass
 
 class G_AugAssign(G_stmt): pass
-class G_ImportFrom(G_stmt): pass
-class G_Import(G_stmt): pass
+
+class G_ImportFrom(G_stmt):
+    def __init__(self, *params):
+        assert False
+        
+class G_Import(G_stmt):
+    def __init__(self, *params):
+        assert False
 
 class G_Expr(G_stmt): pass
 class G_Assert(G_stmt): pass
@@ -588,7 +607,6 @@ class G_Ellipsis(G_expr): pass
 class G_Subscript(G_expr): pass
 class G_BinOp(G_expr): pass
 class G_UnaryOp(G_expr): pass
-class G_Dict(G_expr): pass
 class G_Starred(G_expr): pass
 class G_GeneratorExp(G_expr): pass
 class G_Compare(G_expr): pass
@@ -613,6 +631,10 @@ class G_Num(G_value):
             print('unknown Num:', ast.dump(self))
             return None
         self.type = TT.Specific.factory(kind, self.n)
+
+class G_Dict(G_expr):
+    def init(self):
+        self.type = TT.Dict(self.keys, self.values)
 
         
 def translate(node, parent=None):

@@ -138,6 +138,10 @@ class TypeSet(InstanceInterface):
     def bind(self, name, value):
         return meetall(t.bind(name, value) for t in self.types)
 
+    def bind_type(self, name, value):
+        for t in self.types:
+            t.bind_type(name, value)
+    
     def get_meet_all(self):
         return meetall(t.get_meet_all() for t in self.types if isinstance(t, Seq))
     
@@ -208,7 +212,10 @@ class Instance(InstanceInterface):
         return meet(self.sym[name], self.mytype.bind_lookups(name).bind_parameter(self))
     
     def tostr(self):
-        return self.mytype.name
+        res = self.mytype.name
+        if len(self.sym) > 0:
+            res += '[' + self.sym.one_line_str() + ']'
+        return res 
     
     def __repr__(self):
         return self.tostr()
@@ -216,7 +223,7 @@ class Instance(InstanceInterface):
     def get_type(self):
         return self.mytype
     
-    def bind(self, name, value):
+    def bind_type(self, name, value):
         self.sym.bind_type(name, value) 
 
     
@@ -276,7 +283,7 @@ class Class(Instance):
         return meet(self.sym[name], self.mytype.bind_lookups(name).bind_parameter(self))
     
     def tostr(self):
-        return self.get_type().name + '<{0}>'.format(self.name) 
+        return self.get_type().name + '<{0}>'.format(self.name)
 # #
 '''
 Specific Type Objects
@@ -310,12 +317,14 @@ FALSE = Specific.factory(BOOL, False)
 NONE = Specific.factory(Class('NoneType'), None)
 NONE.tostr = lambda : 'None'
 
-BYTES = DICT = ANY
+BYTES = ANY
 
 SEQ = Class('seq')
 TUPLE = Class('tuple')
 LIST = Class('list')
 STR = Class('str')
+DICT = Class('dict')
+
 
 name_to_type = {
 'int':INT,
@@ -356,12 +365,18 @@ class Iter(Seq):
 
 class Dict(Seq):
     def __init__(self, tkeys, tvalues):
+        '''
         from itertools import product
-        self.instance_vars = SymTable()   
-        skeys = TypeSet.union_all(tkeys) if len(tkeys) != 0 else TypeSet({})
+        if not isinstance(tkeys, TypeSet):
+            tkeys = [tkeys]
+        else:
+            tkeys = tkeys.types
         temp = set(sum([list(product(k, v)) for k, v in zip(tkeys, tvalues)], []))
-        self.types = { k : TypeSet([v for tk, v in temp if tk == k]) for k in skeys}
-    
+        super().__init__(temp)
+        self.types = { k : TypeSet([v for tk, v in temp if tk == k]) for k in TypeSet(tkeys)}
+        '''
+        self.types = (tkeys, tvalues)
+        
     def __repr__(self):
         return "Dict(" + repr(self.types) + ")"
 
@@ -469,7 +484,7 @@ class Subroutine(Instance):
         dic = self.gnode.args.match(actual_args, self.bound_arg)
         if dic is None:
             return TypeSet({})
-        self.gnode.bind_arguments(dic)
+        self.gnode.bind_arguments_type(dic)
         return self.gnode.get_return()
 
     def tostr(self):
