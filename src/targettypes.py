@@ -139,9 +139,8 @@ class TypeSet(InstanceInterface):
         return meetall(t.bind(name, value) for t in self.types)
 
     def bind_type(self, name, value):
-        for t in self.types:
-            t.bind_type(name, value)
-    
+        return any(t.bind_type(name, value) for t in self.types)
+            
     def get_meet_all(self):
         return meetall(t.get_meet_all() for t in self.types if isinstance(t, Seq))
     
@@ -224,7 +223,7 @@ class Instance(InstanceInterface):
         return self.mytype
     
     def bind_type(self, name, value):
-        self.sym.bind_type(name, value) 
+        return self.sym.bind_type(name, value) 
 
     
 class Specific(Instance):

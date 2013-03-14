@@ -12,8 +12,11 @@ class SymTable:
     def bind_type(self, var_id, anInstance):
         assert isinstance(var_id, str)
         assert anInstance is not None
-        self.vars[var_id] = types.meet(self.get_var(var_id), anInstance)
+        old = self.vars.get(var_id)
+        new = types.meet(self.get_var(var_id), anInstance)
+        self.vars[var_id] = new
         assert self.vars[var_id] is not None
+        return not (old == new)  
         
     def get_var(self, name):
         return self.vars.get(name, types.EMPTY())

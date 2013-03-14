@@ -6,16 +6,11 @@ Created on Mar 6, 2013
 
 '''
 TODO:
-* find end condition
-* support finite sequences
-
---
-* add lambda inlining
+* dictionary and set support
+* lambda inlining
 * constrained attribute assignment
-* list tainting
-* dictionary support
+* list tainting, and other mutables
 * better builtins
-* set support
 * function inlining
 
 --
@@ -38,7 +33,7 @@ def error(*x):
 class world:
     _change = True
     @staticmethod
-    def changed():
+    def change():
         world._change = True
     
     @staticmethod    
@@ -162,8 +157,7 @@ class G_Invert(G_unaryop): pass
 
 
 class G_stmt(G_AST):
-    def execute(self):
-        pass
+    pass
 
 class G_expr(G_AST):
     def init(self):
@@ -195,7 +189,7 @@ class G_SName(G_Name, G_Bind_SName):
     def update_type(self, newtype):
         # should be called from "Assign", for instance
         self.type = meet(self.type, newtype)
-        self.refers.update_sym(self.id, newtype)        
+        return self.refers.update_sym(self.id, newtype)
 
 class G_DelName(G_Name, G_Bind_SName):        
     def __init__(self, *params):
@@ -227,7 +221,7 @@ class G_SAttribute(G_Attribute):
         # should be called from "Assign", for instance
         self.type = meet(self.type, newtype)
         target_type = self.value.get_current_type()
-        target_type.bind_type(self.attr, newtype)
+        return target_type.bind_type(self.attr, newtype)
     
 class G_DelAttribute(G_Attribute):
     pass
@@ -249,8 +243,8 @@ class G_Tuple(G_expr):
     def update_type(self, newtype):
         # should be called from "Assign", for instance
         seq = newtype.split_to(len(self.elts))
-        for target, value in zip(self.elts, seq):
-            target.update_type(value)
+        return any(target.update_type(value) for target, value in zip(self.elts, seq))
+            
     
 class G_List(G_expr):
     def get_current_type(self):
@@ -263,7 +257,8 @@ class G_Assign(G_stmt):
             return
         for target in self.targets:
             val = self.value.get_current_type()
-            target.update_type(val)
+            if target.update_type(val):
+                world.change()
 
 class G_With(G_stmt): pass
 
@@ -274,14 +269,16 @@ class G_withitem(G_AST):
             t = val.filter(lambda x :
                             x.bind_lookups('__enter__')
                              and x.bind_lookups('__exit__'))
-            self.optional_vars.update_type(t)
+            if self.optional_vars.update_type(t):
+                world.change()
             
 class G_For(G_stmt):
     def execute(self):
         val = self.iter.get_current_type()
         t = val.filter(lambda x : isinstance(x, TT.Seq))
         res = t.get_meet_all()
-        self.target.update_type(res)
+        if self.target.update_type(res):
+            world.change()
 
 class G_comprehension(G_For):
     pass
@@ -368,14 +365,15 @@ class G_Module(G_def, G_mod, G_Bind_Module):
        
     def execute_all(self):
         self.isbuiltin = G_Builtins.busy        
-        for _ in range(9):
+        while True: #for _ in range(9):
             if self.builtins:
                 self.builtins.execute_all()
             for n in self.defs:
                 n.execute()
             for n in self.assigns:
                 n.execute()
-            # if not world.changed():                break
+            if not world.is_changed():
+                break
     
     def find_assign(self):
         self.defs = list(self.walk_instanceof( (G_FunctionDef, G_ClassDef)))
